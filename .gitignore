@@ -1,0 +1,12 @@
+.venv/
+data/*.csv
+.env
+*.duckdb
+
+# Catch pycache anywhere in the tree
+**/__pycache__/
+*.py[cod]
+
+# OS / Editor clutter
+.DS_Store
+.vscode/

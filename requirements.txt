@@ -1,0 +1,9 @@
+python-dotenv
+duckdb
+pandas
+google-cloud-bigquery
+groq
+pydantic
+fastapi
+uvicorn[standard]
+mcp
