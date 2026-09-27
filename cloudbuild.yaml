@@ -1,0 +1,57 @@
+
+# cloudbuild.yaml - build, push, and deploy AcreIQ to Cloud Run
+
+substitutions:
+  _SERVICE_NAME: acreiq-api
+  _REGION: me-central1          
+  _REPOSITORY: acreiq-repo      
+  _COMMIT_SHA: manual
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_COMMIT_SHA}'
+
+steps:
+  # 1. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_COMMIT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+      - '.'
+
+  # 2. Push both tags to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_COMMIT_SHA}'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_COMMIT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--cpu=1'
+      - '--memory=1Gi'
+      - '--concurrency=20'
+      - '--min-instances=0'
+      - '--max-instances=5'
+      - '--timeout=60'
+      - '--set-env-vars=APP_ENV=local,CSV_PATH=data/dld_transactions.csv'
+      - '--set-secrets=GROQ_API_KEY=groq-api-key:latest'
+      - '--allow-unauthenticated'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 900s
