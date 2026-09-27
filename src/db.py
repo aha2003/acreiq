@@ -1,0 +1,53 @@
+# src/db.py
+import os
+import duckdb
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ENV = os.getenv("APP_ENV", "local").strip().lower()
+# Strip any stray single or double quotes from the env var
+raw_csv = os.getenv("CSV_PATH", "data/dld_transactions.csv")
+CSV_PATH = raw_csv.strip().strip("'").strip('"')
+GCP_PROJECT = os.getenv("GCP_PROJECT", "").strip().strip("'").strip('"')
+
+class DatabaseEngine:
+    def __init__(self):
+        self.env = ENV
+        self.duck_conn = None
+        self.bq_client = None
+
+        if self.env == "prod" and GCP_PROJECT:
+            try:
+                from google.cloud import bigquery
+                self.bq_client = bigquery.Client(project=GCP_PROJECT)
+            except Exception as e:
+                print(f"[WARN] Failed to initialize BigQuery: {e}. Falling back to DuckDB.")
+                self._init_duckdb()
+        else:
+            self._init_duckdb()
+
+    def _init_duckdb(self):
+        self.duck_conn = duckdb.connect(database=":memory:")
+        abs_csv = os.path.abspath(CSV_PATH)
+        if os.path.exists(abs_csv):
+            # Pass abs_csv cleanly without extra internal quote characters
+            self.duck_conn.execute(f"CREATE VIEW transactions AS SELECT * FROM read_csv_auto('{abs_csv}');")
+            print(f"[INFO] Ingested DLD dataset from {abs_csv}")
+        else:
+            print(f"[ERROR] CSV not found at {abs_csv}")
+
+    def execute_query(self, query: str, params: dict):
+        if self.duck_conn is not None:
+            return self.duck_conn.execute(query, params).fetchdf()
+        else:
+            from google.cloud import bigquery
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter(k, "STRING" if isinstance(v, str) else "INT64", v)
+                    for k, v in params.items()
+                ]
+            )
+            return self.bq_client.query(query, job_config=job_config).to_dataframe()
+
+db_engine = DatabaseEngine()
