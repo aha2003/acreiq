@@ -1,0 +1,66 @@
+[
+  {
+    "id": "tc_01",
+    "query": "What are current median sales prices in Dubai Marina?",
+    "expected_area": "Dubai Marina",
+    "expected_cadastral": "marsa dubai",
+    "should_ground": true,
+    "category": "standard_lookup"
+  },
+  {
+    "id": "tc_02",
+    "query": "Give me transaction volumes and average price for Downtown Dubai.",
+    "expected_area": "Downtown Dubai",
+    "expected_cadastral": "burj khalifa",
+    "should_ground": true,
+    "category": "alias_resolution"
+  },
+  {
+    "id": "tc_03",
+    "query": "Can you check sales activity in Business Bay?",
+    "expected_area": "Business Bay",
+    "expected_cadastral": "business bay",
+    "should_ground": true,
+    "category": "direct_match"
+  },
+  {
+    "id": "tc_04",
+    "query": "How much does property sell for in Palm Jumeirah?",
+    "expected_area": "Palm Jumeirah",
+    "expected_cadastral": "palm jumeirah",
+    "should_ground": true,
+    "category": "direct_match"
+  },
+  {
+    "id": "tc_05",
+    "query": "Check recent sales in JVC.",
+    "expected_area": "JVC",
+    "expected_cadastral": "al barsha south fourth",
+    "should_ground": true,
+    "category": "abbreviation_alias"
+  },
+  {
+    "id": "tc_06",
+    "query": "What are the numbers for JLT?",
+    "expected_area": "JLT",
+    "expected_cadastral": "al thanyah fifth",
+    "should_ground": true,
+    "category": "abbreviation_alias"
+  },
+  {
+    "id": "tc_07",
+    "query": "Show me sales data for Gotham City Central.",
+    "expected_area": "Gotham City Central",
+    "expected_cadastral": null,
+    "should_ground": false,
+    "category": "adversarial_nonexistent"
+  },
+  {
+    "id": "tc_08",
+    "query": "What is the mortgage trend in Marsa Dubai?",
+    "expected_area": "Marsa Dubai",
+    "expected_cadastral": "marsa dubai",
+    "should_ground": true,
+    "category": "direct_cadastral"
+  }
+]
