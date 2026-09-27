@@ -1,6 +1,6 @@
 # AcreIQ
 
-### Verifiable Financial Intelligence for Dubai Real Estate
+### Verifiable Financial Intelligence for 2023 Dubai Real Estate
 
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Live%20API-4285F4?logo=googlecloud\&logoColor=white)](https://acreiq-api-zv7ueef3fq-ww.a.run.app/docs)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python\&logoColor=white)](https://www.python.org/)
@@ -8,7 +8,7 @@
 [![DuckDB](https://img.shields.io/badge/DuckDB-Analytical%20Engine-FFF000?logo=duckdb\&logoColor=000)](https://duckdb.org/)
 [![GCP](https://img.shields.io/badge/Google%20Cloud-Production-4285F4?logo=googlecloud\&logoColor=white)](https://cloud.google.com/)
 
-**AcreIQ** is an analytical AI engine and production REST API for performing verifiable financial intelligence over official **Dubai Land Department (DLD)** real-estate transaction data.
+**AcreIQ** is an analytical AI engine and production REST API for performing verifiable financial intelligence over official **Dubai Land Department (DLD) real-estate transaction data covering the 2023 calendar year**.
 
 The system is designed around a simple principle:
 
@@ -140,17 +140,25 @@ For example:
 
 ```text
 User Query
+
     │
     ▼
+
 "Show me the market in Downtown Dubai"
+
     │
     ▼
+
 Cadastral Resolution
+
     │
     ▼
+
 "burj khalifa"
+
     │
     ▼
+
 DLD Transactions
 ```
 
@@ -185,16 +193,22 @@ Conceptually:
 
 ```text
 DuckDB Ground Truth
+
         │
         ├── median = 2,635,000
         ├── mean   = 3,797,000
         └── avg/m² = 29,292.58
+
                   │
                   ▼
-          Generated Response
+
+           Generated Response
+
                   │
                   ▼
-            Auditor Gate
+
+             Auditor Gate
+
                   │
           ┌───────┴───────┐
           │               │
@@ -271,7 +285,7 @@ This is an intentional failure mode.
 
 # Production Benchmark
 
-The following results are from the project's evaluation runs against the production deployment.
+The following results are from evaluation runs against the production deployment using the **2023 DLD transaction dataset**.
 
 | Scenario                   | Cadastral Resolution         | Analytical Output                                                                | Grounded                 |         Latency |
 | -------------------------- | ---------------------------- | -------------------------------------------------------------------------------- | ------------------------ | --------------: |
@@ -435,8 +449,10 @@ The deployment is designed for low idle cost while retaining bounded production 
 
 ```text
                          Google Cloud
+
                               │
                               ▼
+
                     ┌──────────────────┐
                     │    Cloud Run     │
                     │    me-central1   │
@@ -502,31 +518,60 @@ Secrets should never be committed to the repository or baked into Docker layers.
 
 # Data Architecture
 
-AcreIQ operates over approximately **600 MB of raw Dubai Land Department transaction data**.
+AcreIQ operates over approximately **600 MB of raw Dubai Land Department transaction data covering the 2023 calendar year**.
 
-The analytical path is intentionally simple:
+The dataset contains transaction-level records including property characteristics, cadastral information, transaction procedures, transaction values, and related real-estate attributes.
 
 ```text
-DLD Source Data
-      │
-      ▼
-Transaction Records
-      │
-      ▼
+DLD Open Transaction Data
+        │
+        ▼
+2023 Transaction Dataset (~600 MB)
+        │
+        ▼
 Container Memory
-      │
-      ▼
+        │
+        ▼
 DuckDB
-      │
-      ├── Entity filtering
-      ├── Aggregation
-      ├── Statistical computation
-      └── Provenance extraction
+        │
+        ├── Entity filtering
+        ├── Aggregation
+        ├── Statistical computation
+        └── Provenance extraction
 ```
 
 DuckDB provides an embedded analytical database without requiring a separate database service for the transactional analytical workload.
 
 This keeps the architecture lightweight while allowing SQL-based analytical operations over the complete in-memory dataset.
+
+---
+
+# Data Scope & Limitations
+
+The current AcreIQ deployment uses a **Dubai Land Department open transaction dataset covering the 2023 calendar year**.
+
+Accordingly:
+
+* All analytical results are based on **2023 transactions only**.
+* Reported transaction volumes represent records available in the 2023 dataset, not total historical DLD activity.
+* Median, mean, and price/m² statistics describe the **2023 observed transaction sample**.
+* The current system does not provide year-over-year market trends or a continuous historical time series.
+* Results should not be interpreted as representing current **2026** market conditions.
+* Queries concerning post-2023 conditions are outside the temporal coverage of the underlying dataset.
+
+The dataset is sourced from **Dubai Land Department open transaction data** and is published under the [Dubai Pulse Open Data Licence](https://www.dubaipulse.gov.ae/docs/DDE%20_%20DRAFT_Open_Data_Licence_LONG_Form_English_3.pdf).
+
+### Dataset Coverage
+
+| Attribute         | Coverage                        |
+| ----------------- | ------------------------------- |
+| Source            | Dubai Land Department           |
+| Dataset type      | Real-estate transaction records |
+| Geographic scope  | Dubai, UAE                      |
+| Temporal scope    | **2023 calendar year**          |
+| Raw dataset size  | ~600 MB                         |
+| Analytical engine | DuckDB                          |
+| Storage model     | In-memory                       |
 
 ---
 
@@ -560,7 +605,7 @@ This keeps the architecture lightweight while allowing SQL-based analytical oper
 
 * Python 3.11+
 * Docker
-* Access to the DLD transaction dataset
+* Access to the **2023 DLD transaction dataset**
 * Groq API key for LLM synthesis
 
 ---
@@ -699,7 +744,11 @@ Analytical claims retain references to underlying DLD registry records.
 
 When there is no verified source data, AcreIQ does not manufacture an answer.
 
-### 6. Optimize for Production Constraints
+### 6. Respect Data Scope
+
+Analytical claims are bounded by the temporal and geographic coverage of the underlying dataset.
+
+### 7. Optimize for Production Constraints
 
 The architecture deliberately balances:
 
@@ -714,19 +763,19 @@ The architecture deliberately balances:
 
 # Technology Stack
 
-| Layer               | Technology                         |
-| ------------------- | ---------------------------------- |
-| API                 | FastAPI                            |
-| Language            | Python 3.11+                       |
-| Analytical Database | DuckDB                             |
-| LLM                 | Groq / LLaMA 3.3                   |
-| Data Validation     | Pydantic                           |
-| Tool Interface      | MCP                                |
-| Containerization    | Docker                             |
-| Runtime             | Google Cloud Run                   |
-| CI/CD               | Google Cloud Build                 |
-| Secrets             | Google Cloud Secret Manager        |
-| Source Data         | Dubai Land Department transactions |
+| Layer               | Technology                                    |
+| ------------------- | --------------------------------------------- |
+| API                 | FastAPI                                       |
+| Language            | Python 3.11+                                  |
+| Analytical Database | DuckDB                                        |
+| LLM                 | Groq / LLaMA 3.3                              |
+| Data Validation     | Pydantic                                      |
+| Tool Interface      | MCP                                           |
+| Containerization    | Docker                                        |
+| Runtime             | Google Cloud Run                              |
+| CI/CD               | Google Cloud Build                            |
+| Secrets             | Google Cloud Secret Manager                   |
+| Source Data         | Dubai Land Department — **2023 transactions** |
 
 ---
 
@@ -736,20 +785,20 @@ The architecture deliberately balances:
                 AcreIQ Reliability Model
 
        ┌─────────────────────────────────────┐
-       │       DLD Transaction Ground Truth   │
+       │     2023 DLD Transaction Ground Truth │
        └──────────────────┬──────────────────┘
                           │
                           ▼
-                  Deterministic SQL
+                   Deterministic SQL
                           │
                           ▼
-                  Analytical Results
+                   Analytical Results
                           │
                           ▼
-                   LLM Synthesis
+                    LLM Synthesis
                           │
                           ▼
-                   Auditor Gate
+                    Auditor Gate
                           │
              ┌────────────┴────────────┐
              │                         │
@@ -793,7 +842,7 @@ AcreIQ is deployed as a production serverless REST API with automated Cloud Buil
 The current benchmark demonstrates the intended operating model:
 
 ```text
-Valid financial query
+Valid 2023 financial query
         → deterministic analysis
         → LLM explanation
         → programmatic verification
