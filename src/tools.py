@@ -3,19 +3,29 @@ from typing import Optional, Dict
 from pydantic import BaseModel, Field
 from src.db import db_engine
 
-# Map common investor/commercial names to official DLD cadastral names
+# Map common investor/commercial names and transliterations to official DLD cadastral names
 COMMUNITY_ALIASES: Dict[str, str] = {
+    # Commercial & Marina Hubs
     "dubai marina": "marsa dubai",
     "downtown dubai": "burj khalifa",
     "downtown": "burj khalifa",
+    "business bay": "business bay",
+    "palm jumeirah": "palm jumeirah",
+    # JLT & JVC
     "jumeirah village circle": "al barsha south fourth",
     "jvc": "al barsha south fourth",
     "jumeirah lakes towers": "al thanyah fifth",
     "jumeirah lake towers": "al thanyah fifth", 
     "jlt": "al thanyah fifth",
-    "business bay": "business bay",
-    "palm jumeirah": "palm jumeirah",
+    # Transliterations & Fragmented Communities
+    "nad al sheba": "nad al shiba",
+    "nad al sheba 1": "nad al shiba first",
+    "nad al sheba 2": "nad al shiba second",
+    "nad al sheba 3": "nad al shiba third",
+    "nad al sheba 4": "nad al shiba fourth",
+    "wadi al safaa": "wadi al safa",
     "international city": "al warsan first",
+    "difc": "trade center second",
 }
 
 class MarketQueryInput(BaseModel):
@@ -31,6 +41,7 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
     cleaned_input = area_name.strip().lower()
     # Normalize colloquial market name to registry name if alias exists
     target_area = COMMUNITY_ALIASES.get(cleaned_input, cleaned_input)
+    prefix_pattern = f"{target_area} %"
 
     sql = """
         WITH cleaned_transactions AS (
@@ -52,7 +63,10 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
             procedure_area,
             meter_sale_price
         FROM cleaned_transactions
-        WHERE LOWER(area_name_en) = LOWER($area_name)
+        WHERE (
+            LOWER(area_name_en) = LOWER($area_name)
+            OR LOWER(area_name_en) LIKE LOWER($prefix_pattern)
+        )
           AND LOWER(trans_group_en) = LOWER($trans_group)
           AND actual_worth IS NOT NULL
           AND actual_worth > 0
@@ -60,7 +74,13 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
         LIMIT 500;
     """
     
-    df = db_engine.execute_query(sql, {"area_name": target_area, "trans_group": trans_group})
+    params = {
+        "area_name": target_area,
+        "prefix_pattern": prefix_pattern,
+        "trans_group": trans_group
+    }
+    
+    df = db_engine.execute_query(sql, params)
 
     if df.empty:
         return {
