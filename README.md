@@ -495,100 +495,40 @@ The system rejects the query instead of generating unsupported financial figures
 
 A typical production request follows this sequence:
 
-```text
-POST /v1/chat
+```mermaid
+flowchart TD
+    Req["<b>POST /v1/chat</b><br/><i>Inbound Client Request</i>"] --> Val["<b>FastAPI Validation</b><br/>Strict Pydantic Input Schemas"]
+    Val --> Cadastral{"<b>Cadastral Entity Resolution</b><br/>Colloquial to DLD Registry Key"}
 
-      │
+    %% Unsupported / Adversarial Branch
+    Cadastral -- "No Verified Cadastral Match" --> Circuit["<b>Fast-Path Circuit Breaker</b><br/>No database compute / zero LLM spend"]
+    Circuit --> Reject["<b>is_grounded: false</b><br/>• NO_RECORDS_FOUND<br/>• Discrepancy log generated"]
 
-      ▼
+    %% Grounded / Supported Path
+    Cadastral -- "Verified Cadastral Entity" --> DuckDB["<b>DuckDB Analytical Engine</b><br/><i>In-memory deterministic vectorized SQL</i><br/>• Transaction count<br/>• Median & Mean actual_worth<br/>• Average price / m²<br/>• Monthly timeseries aggregation<br/>• Ready vs. Off-Plan segmentation<br/>• Authoritative DLD registry IDs"]
 
-FastAPI validation
+    DuckDB --> Synthesizer["<b>Groq / LLaMA 3.3 Synthesis</b><br/>Generates natural-language market brief"]
 
-      │
+    Synthesizer --> Auditor{"<b>Auditor Gate</b><br/><i>Deterministic Grounding Check</i><br/>• Numerical verification (&lt;1% delta)<br/>• Cadastral consistency<br/>• Provenance verification"}
 
-      ▼
+    Auditor -- "Auditor Pass (0 Discrepancies)" --> Success["<b>Verified API Response</b><br/>• Grounded market brief<br/>• Verified DLD registry trace IDs<br/>• Segmented timeseries payload"]
+    Auditor -- "Auditor Fail" --> Circuit
 
-Cadastral entity resolution
+    %% Styling
+    classDef entry fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
+    classDef process fill:#0b1120,stroke:#334155,stroke-width:1.5px,color:#e2e8f0;
+    classDef engine fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
+    classDef decision fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
+    classDef success fill:#052e16,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
+    classDef failure fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fef2f2;
 
-      │
-
-      ▼
-
-DuckDB analytical query
-
-      │
-
-      ├── Transaction count
-
-      ├── Median
-
-      ├── Mean
-
-      ├── Average price/m²
-
-      ├── Monthly timeseries
-
-      ├── Ready / Off-Plan segmentation
-
-      └── DLD registry IDs
-
-      │
-
-      ▼
-
-Groq / LLaMA 3.3 synthesis
-
-      │
-
-      ▼
-
-Auditor Gate
-
-      │
-
-      ├── Numerical verification
-
-      ├── Grounding verification
-
-      └── Provenance verification
-
-      │
-
-      ▼
-
-Verified API response
+    class Req entry;
+    class Val,Synthesizer process;
+    class Cadastral,Auditor decision;
+    class DuckDB engine;
+    class Success success;
+    class Circuit,Reject failure;
 ```
-
-For unsupported entities:
-
-```text
-POST /v1/chat
-
-      │
-
-      ▼
-
-Cadastral resolution
-
-      │
-
-      ▼
-
-No verified records
-
-      │
-
-      ▼
-
-Fast-Path Circuit Breaker
-
-      │
-
-      ▼
-
-is_grounded: false
-```
-
 ---
 
 # Client Interfaces
@@ -637,35 +577,57 @@ me-central1
 
 The production architecture separates the Vercel-hosted client from the analytical backend:
 
-```text
-                         Users / Agents
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-              ▼                ▼                ▼
-       React / Vite          MCP             REST
-          Vercel           Clients          Clients
-              │                │                │
-              └────────────────┼────────────────┘
-                               │
-                               ▼
-                     Google Cloud Run
-                         me-central1
-                               │
-                    ┌──────────┴──────────┐
-                    │                     │
-                    ▼                     ▼
-             AcreIQ Container       Secret Manager
-                    │                     │
-                    │                GROQ_API_KEY
-                    │
-                    ▼
-                DuckDB RAM
-                    │
-                    ▼
-              DLD Transactions
-```
+```mermaid
+flowchart TD
+    Users["<b>Users / Agents</b><br/><i>Human & Autonomous Query Traffic</i>"]
 
+    subgraph Ingress["Client Entrypoints"]
+        direction LR
+        UI["<b>React / Vite</b><br/><i>Vercel Edge Network</i>"]
+        MCP["<b>MCP Clients</b><br/><i>Claude Desktop / Agents</i>"]
+        REST["<b>REST Clients</b><br/><i>Direct Programmatic API</i>"]
+    end
+
+    Users --> UI
+    Users --> MCP
+    Users --> REST
+
+    subgraph GCP["Google Cloud Platform (me-central1)"]
+        direction TB
+        CR["<b>Google Cloud Run</b><br/><i>Serverless Execution Layer</i>"]
+        
+        subgraph Runtime["AcreIQ Container"]
+            direction TB
+            App["<b>FastAPI & Analytical Core</b><br/>Non-Root Container"]
+            DuckRAM[("<b>DuckDB (In-Memory)</b><br/>Vectorized OLAP RAM")]
+            Dataset[("<b>DLD Transactions</b><br/>600MB Calibrated 2023 Dataset")]
+            
+            App --> DuckRAM
+            DuckRAM --> Dataset
+        end
+
+        Secret[("<b>Secret Manager</b><br/>GROQ_API_KEY")]
+    end
+
+    UI --> CR
+    MCP --> CR
+    REST --> CR
+
+    CR --> App
+    CR -.->|Dynamic Key Injection| Secret
+    App -.->|Secure LLM Inference| Groq["<b>Groq Cloud</b><br/>LLaMA 3.3 70B Versatile"]
+
+    %% Node Styling
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
+    classDef cloud fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
+    classDef data fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
+    classDef sec fill:#450a0a,stroke:#f59e0b,stroke-width:1.5px,color:#fffbeb;
+
+    class UI,MCP,REST client;
+    class CR,App cloud;
+    class DuckRAM,Dataset,Groq data;
+    class Secret sec;
+```
 The deployment is designed for low idle cost while retaining bounded production capacity.
 
 ### Runtime Configuration
@@ -719,31 +681,37 @@ The frontend does not contain the Groq API credential or other backend secrets.
 
 # Data Architecture
 
-AcreIQ operates over approximately **600 MB of raw Dubai Land Department transaction data covering the 2023 calendar year**.
+```mermaid
+flowchart TD
+    DLD["<b>DLD Source Data</b><br/>Official Registry Transactions"] --> Records["<b>Transaction Records</b><br/>~600 MB Raw Tabular Data"]
+    Records --> Memory["<b>Container Memory</b><br/>In-Memory RAM Buffer (me-central1)"]
+    Memory --> DuckDB[("<b>DuckDB OLAP Engine</b><br/>Vectorized SQL Analytics")]
 
-The analytical path is intentionally simple:
+    subgraph Operations["Execution Primitives"]
+        direction TB
+        OP1["<b>Cadastral Filtering</b><br/><i>Maps colloquial inputs to master zone keys</i>"]
+        OP2["<b>Ready / Off-Plan Segmentation</b><br/><i>Decouples secondary resales from developer contracts</i>"]
+        OP3["<b>Monthly Aggregation</b><br/><i>Buckets dual-axis volume and price/m² timeseries</i>"]
+        OP4["<b>Statistical Computation</b><br/><i>Calculates true median, mean, and rate distributions</i>"]
+        OP5["<b>Provenance Extraction</b><br/><i>Isolates traceable source DLD registry IDs</i>"]
+    end
 
-```text
-DLD Source Data
-      │
-      ▼
-Transaction Records
-      │
-      ▼
-Container Memory
-      │
-      ▼
-DuckDB
-      │
-      ├── Cadastral filtering
-      │
-      ├── Ready / Off-Plan segmentation
-      │
-      ├── Monthly aggregation
-      │
-      ├── Statistical computation
-      │
-      └── Provenance extraction
+    DuckDB --> OP1
+    DuckDB --> OP2
+    DuckDB --> OP3
+    DuckDB --> OP4
+    DuckDB --> OP5
+
+    %% Styling
+    classDef source fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
+    classDef mem fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
+    classDef db fill:#022c22,stroke:#10b981,stroke-width:2px,color:#ecfdf5;
+    classDef ops fill:#0b1120,stroke:#334155,stroke-width:1.5px,color:#e2e8f0;
+
+    class DLD,Records source;
+    class Memory mem;
+    class DuckDB db;
+    class OP1,OP2,OP3,OP4,OP5 ops;
 ```
 
 DuckDB provides an embedded analytical database without requiring a separate database service for the transactional analytical workload.
