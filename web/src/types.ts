@@ -4,6 +4,8 @@ export interface TimeSeriesPoint {
   monthly_avg_price: number;
   monthly_median_price: number;
   monthly_avg_sqm: number;
+  ready_avg_sqm?: number;
+  offplan_avg_sqm?: number;
 }
 
 export interface ChatResponse {

@@ -16,18 +16,31 @@ DLD_TOOL_DEFINITION = {
     "type": "function",
     "function": {
         "name": "get_area_metrics",
-        "description": "Retrieves official DLD sales volume, average price, median price, and transaction traces for an area.",
+        "description": "Retrieves official DLD sales volume, average price, median price, transaction traces, and timeseries.",
         "parameters": {
             "type": "object",
             "properties": {
                 "area_name": {
                     "type": "string",
-                    "description": "Dubai area name, e.g. 'Dubai Marina', 'Business Bay', 'Downtown Dubai'"
+                    "description": "Dubai area name, e.g. 'Dubai Marina', 'Business Bay'"
                 },
                 "trans_group": {
                     "type": "string",
                     "description": "Transaction group, default 'Sales'",
                     "enum": ["Sales", "Mortgages", "Gifts"]
+                },
+                "reg_type": {
+                    "type": "string",
+                    "description": "Property status filter: 'Ready' or 'Off-Plan'",
+                    "enum": ["Ready", "Off-Plan"]
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "Optional ISO format start date (YYYY-MM-DD)"
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "Optional ISO format end date (YYYY-MM-DD)"
                 }
             },
             "required": ["area_name"]
@@ -69,10 +82,12 @@ class AcreIQWorkflow:
                 for tool_call in response_message.tool_calls:
                     if tool_call.function.name == "get_area_metrics":
                         args = json.loads(tool_call.function.arguments)
-                        print(f"DEBUG: LLM called tool with args = {args}")
                         raw_tool_data = get_area_metrics(
                             area_name=args.get("area_name", ""),
-                            trans_group=args.get("trans_group", "Sales")
+                            trans_group=args.get("trans_group", "Sales"),
+                            reg_type=args.get("reg_type"),
+                            start_date=args.get("start_date"),
+                            end_date=args.get("end_date")
                         )
         except Exception as e:
             raw_tool_data = {"status": "TOOL_CALL_ERROR", "error": str(e)}

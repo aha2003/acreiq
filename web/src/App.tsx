@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { 
   ResponsiveContainer, 
   ComposedChart, 
@@ -18,30 +17,46 @@ import {
   Database, 
   Search, 
   Building2, 
-  TrendingUp 
+  TrendingUp,
+  Calendar,
+  Layers
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import type { ChatResponse } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/v1/chat";
 
 export default function App() {
-  const [query, setQuery] = useState("");
+  const [baseArea, setBaseArea] = useState("Business Bay");
+  const [timeHorizon, setTimeHorizon] = useState<"ALL" | "1Y" | "6M" | "3M">("ALL");
+  const [marketType, setMarketType] = useState<"ALL" | "Ready" | "Off-Plan">("ALL");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ChatResponse | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-
+  const executeSearch = async (area: string, horizon: string, market: string) => {
     setLoading(true);
     setError(null);
+
+    // Build natural-language prompt containing temporal and segmentation modifiers
+    let constructedQuery = `Summarize transaction prices in ${area}`;
+    if (market !== "ALL") {
+      constructedQuery += ` for ${market} properties`;
+    }
+    if (horizon === "3M") {
+      constructedQuery += " over the last 3 months";
+    } else if (horizon === "6M") {
+      constructedQuery += " over the last 6 months";
+    } else if (horizon === "1Y") {
+      constructedQuery += " in the past year";
+    }
 
     try {
       const res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: constructedQuery }),
       });
 
       if (!res.ok) {
@@ -57,9 +72,14 @@ export default function App() {
     }
   };
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!baseArea.trim()) return;
+    executeSearch(baseArea, timeHorizon, marketType);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top Header */}
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold">
@@ -69,7 +89,7 @@ export default function App() {
             <h1 className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
               AcreIQ Terminal
               <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
-                v1.0 DLD OLAP
+                v1.1 DLD Segmented
               </span>
             </h1>
             <p className="text-xs text-slate-400">Deterministic UAE Real Estate Market Operations</p>
@@ -86,18 +106,16 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-6">
-        {/* Search Bar */}
-        <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
+        <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+          <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-3.5 text-slate-500" size={16} />
               <input
                 type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ask about any community (e.g. 'Summarize transaction prices in Business Bay', 'Wadi Al Safa', 'Nad Al Sheba')..."
+                value={baseArea}
+                onChange={(e) => setBaseArea(e.target.value)}
+                placeholder="Enter community (e.g. 'Business Bay', 'Dubai Marina', 'Wadi Al Safa')..."
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
               />
             </div>
@@ -117,19 +135,76 @@ export default function App() {
             </button>
           </form>
 
-          {/* Quick Filter Buttons */}
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs text-slate-400 overflow-x-auto">
-            <span className="text-slate-500 font-medium">Try:</span>
-            {["Business Bay", "Wadi Al Safa", "Nad Al Sheba", "Dubai Marina"].map((area) => (
-              <button
-                key={area}
-                type="button"
-                onClick={() => setQuery(`Summarize transaction prices in ${area}`)}
-                className="hover:text-cyan-400 hover:border-cyan-800 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded transition-colors whitespace-nowrap cursor-pointer"
-              >
-                {area}
-              </button>
-            ))}
+          {/* Filter Toolbar: Community Chips + Time Horizon + Market Segment */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800/60 text-xs">
+            {/* Quick Communities */}
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <span className="text-slate-500 font-medium">Areas:</span>
+              {["Business Bay", "Wadi Al Safa", "Nad Al Sheba", "Dubai Marina", "Downtown Dubai"].map((area) => (
+                <button
+                  key={area}
+                  type="button"
+                  onClick={() => {
+                    setBaseArea(area);
+                    executeSearch(area, timeHorizon, marketType);
+                  }}
+                  className={`px-2 py-0.5 rounded border transition-colors cursor-pointer whitespace-nowrap ${
+                    baseArea.toLowerCase() === area.toLowerCase()
+                      ? "bg-cyan-950 border-cyan-800 text-cyan-400 font-medium"
+                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {area}
+                </button>
+              ))}
+            </div>
+
+            {/* Time Horizon & Market Type Toggles */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Market Type */}
+              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-0.5 rounded-lg">
+                <Layers size={13} className="text-slate-500 ml-1.5" />
+                {(["ALL", "Ready", "Off-Plan"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setMarketType(type);
+                      executeSearch(baseArea, timeHorizon, type);
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                      marketType === type
+                        ? "bg-slate-800 text-cyan-400 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {type === "ALL" ? "All Types" : type}
+                  </button>
+                ))}
+              </div>
+
+              {/* Time Duration */}
+              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-0.5 rounded-lg">
+                <Calendar size={13} className="text-slate-500 ml-1.5" />
+                {(["ALL", "1Y", "6M", "3M"] as const).map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => {
+                      setTimeHorizon(h);
+                      executeSearch(baseArea, h, marketType);
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                      timeHorizon === h
+                        ? "bg-slate-800 text-cyan-400 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {h === "ALL" ? "All Time" : h}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -139,10 +214,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Results Workspace */}
         {result && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Grounded Brief & Auditor Pass (5 Cols) */}
             <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <span
@@ -192,14 +265,16 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: Historical Distribution Chart (7 Cols) */}
             <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                  <TrendingUp size={15} className="text-cyan-400" />
-                  Monthly Price / m² & Transaction Volume
-                </h3>
-                <span className="text-xs text-slate-500 font-mono">Official DLD Timeseries</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <TrendingUp size={15} className="text-cyan-400" />
+                    Market Dynamics: Price / m² & Volume
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Segmented Ready vs. Off-Plan trajectories</p>
+                </div>
+                <span className="text-xs text-slate-500 font-mono">DLD Registry Timeseries</span>
               </div>
 
               {result.timeseries && result.timeseries.length > 0 ? (
@@ -247,19 +322,32 @@ export default function App() {
                         name="Volume (Deals)" 
                         fill="#1e293b" 
                         stroke="#334155"
-                        barSize={result.timeseries?.length === 1 ? 80 : undefined} 
                         radius={[4, 4, 0, 0]} 
                       />
-                      <Line 
-                        yAxisId="left" 
-                        type="monotone" 
-                        dataKey="monthly_avg_sqm" 
-                        name="Avg Price / m² (AED)" 
-                        stroke="#06b6d4" 
-                        strokeWidth={2} 
-                        dot={{ fill: "#06b6d4", r: 5, stroke: "#083344", strokeWidth: 2 }} 
-                        activeDot={{ r: 7 }}
-                      />
+                      {(marketType === "ALL" || marketType === "Ready") && (
+                        <Line 
+                          yAxisId="left" 
+                          type="monotone" 
+                          dataKey="ready_avg_sqm" 
+                          name="Ready (AED/m²)" 
+                          stroke="#06b6d4" 
+                          strokeWidth={2} 
+                          connectNulls={true}
+                          dot={{ fill: "#06b6d4", r: 4 }} 
+                        />
+                      )}
+                      {(marketType === "ALL" || marketType === "Off-Plan") && (
+                        <Line 
+                          yAxisId="left" 
+                          type="monotone" 
+                          dataKey="offplan_avg_sqm" 
+                          name="Off-Plan (AED/m²)" 
+                          stroke="#f59e0b" 
+                          strokeWidth={2} 
+                          connectNulls={true}
+                          dot={{ fill: "#f59e0b", r: 4 }} 
+                        />
+                      )}
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -270,26 +358,29 @@ export default function App() {
                 </div>
               )}
 
-              {/* KPI Summary Cards */}
               {result.timeseries && result.timeseries.length > 0 && (
                 <div className="grid grid-cols-3 gap-3 border-t border-slate-800 pt-3">
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                    <p className="text-[10px] text-slate-500 uppercase font-mono">Period Buckets</p>
-                    <p className="text-sm font-semibold text-slate-200 mt-0.5">{result.timeseries.length} Months</p>
-                  </div>
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                    <p className="text-[10px] text-slate-500 uppercase font-mono">Peak Monthly Avg</p>
-                    <p className="text-sm font-semibold text-cyan-400 mt-0.5">
-                      AED {Math.max(...result.timeseries.map(t => t.monthly_avg_sqm)).toLocaleString()}/m²
-                    </p>
-                  </div>
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                    <p className="text-[10px] text-slate-500 uppercase font-mono">Total Traced Deals</p>
-                    <p className="text-sm font-semibold text-slate-200 mt-0.5">
-                      {result.timeseries.reduce((acc, t) => acc + t.volume, 0).toLocaleString()}
-                    </p>
-                  </div>
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
+                  <p className="text-[10px] text-slate-500 uppercase font-mono">Period Buckets</p>
+                  <p className="text-sm font-semibold text-slate-200 mt-0.5">{result.timeseries.length} Months</p>
                 </div>
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
+                  <p className="text-[10px] text-slate-500 uppercase font-mono">Peak Ready Rate</p>
+                  <p className="text-sm font-semibold text-cyan-400 mt-0.5">
+                    {Math.max(...result.timeseries.map(t => t.ready_avg_sqm || 0)) > 0 
+                      ? `AED ${Math.max(...result.timeseries.map(t => t.ready_avg_sqm || 0)).toLocaleString()}/m²`
+                      : "N/A (Off-Plan Slice)"}
+                  </p>
+                </div>
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
+                  <p className="text-[10px] text-slate-500 uppercase font-mono">Peak Off-Plan Rate</p>
+                  <p className="text-sm font-semibold text-amber-400 mt-0.5">
+                    {Math.max(...result.timeseries.map(t => t.offplan_avg_sqm || 0)) > 0 
+                      ? `AED ${Math.max(...result.timeseries.map(t => t.offplan_avg_sqm || 0)).toLocaleString()}/m²`
+                      : "N/A (Ready Slice)"}
+                  </p>
+                </div>
+              </div>
               )}
             </div>
           </div>

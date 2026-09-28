@@ -1,5 +1,5 @@
 # src/schemas.py
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class TimeSeriesPoint(BaseModel):
@@ -7,7 +7,9 @@ class TimeSeriesPoint(BaseModel):
     volume: int = Field(description="Number of transactions in this month")
     monthly_avg_price: float = Field(description="Mean transaction value in AED")
     monthly_median_price: float = Field(description="Median transaction value in AED")
-    monthly_avg_sqm: float = Field(description="Average price per square meter in AED")
+    monthly_avg_sqm: float = Field(description="Overall average price per square meter in AED")
+    ready_avg_sqm: Optional[float] = Field(default=0.0, description="Average price/m² for Ready transactions")
+    offplan_avg_sqm: Optional[float] = Field(default=0.0, description="Average price/m² for Off-plan transactions")
 
 class AnalystDraft(BaseModel):
     area_analyzed: str = Field(description="The area name analyzed")
