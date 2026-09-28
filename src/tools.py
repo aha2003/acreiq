@@ -1,5 +1,6 @@
 # src/tools.py
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Any
+import pandas as pd
 from pydantic import BaseModel, Field
 from src.db import db_engine
 
@@ -31,12 +32,12 @@ COMMUNITY_ALIASES: Dict[str, str] = {
 class MarketQueryInput(BaseModel):
     area_name: str = Field(..., description="Area name in English (e.g. 'Dubai Marina', 'Business Bay', 'Marsa Dubai')")
     trans_group: Optional[str] = Field(default="Sales", description="Transaction type, e.g., 'Sales', 'Mortgages'")
-    limit_records: Optional[int] = Field(default=500, description="Max records to sample for analysis")
+    limit_records: Optional[int] = Field(default=5000, description="Max records to sample for analysis")
 
 def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
     """
     Computes pricing metrics and returns ground-truth registered transaction records 
-    from the Dubai Land Department dataset for verification.
+    from the Dubai Land Department dataset for verification, including monthly trend metrics.
     """
     cleaned_input = area_name.strip().lower()
     # Normalize colloquial market name to registry name if alias exists
@@ -71,7 +72,7 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
           AND actual_worth IS NOT NULL
           AND actual_worth > 0
         ORDER BY instance_date DESC
-        LIMIT 500;
+        LIMIT 5000;
     """
     
     params = {
@@ -94,6 +95,34 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
     median_price = float(df["actual_worth"].median())
     avg_sqm_price = float(df["meter_sale_price"].dropna().mean()) if not df["meter_sale_price"].dropna().empty else 0.0
 
+    # Calculate monthly timeseries for chart generation
+    timeseries: List[Dict[str, Any]] = []
+    try:
+        temp_df = df.copy()
+        temp_df["parsed_date"] = pd.to_datetime(temp_df["instance_date"], errors="coerce")
+        temp_df = temp_df.dropna(subset=["parsed_date"])
+        
+        if not temp_df.empty:
+            temp_df["month_year"] = temp_df["parsed_date"].dt.strftime("%Y-%m")
+            monthly = temp_df.groupby("month_year").agg(
+                volume=("transaction_id", "count"),
+                monthly_avg_price=("actual_worth", "mean"),
+                monthly_median_price=("actual_worth", "median"),
+                monthly_avg_sqm=("meter_sale_price", "mean")
+            ).reset_index().sort_values("month_year")
+
+            for _, row in monthly.iterrows():
+                timeseries.append({
+                    "month_year": str(row["month_year"]),
+                    "volume": int(row["volume"]),
+                    "monthly_avg_price": round(float(row["monthly_avg_price"]), 2),
+                    "monthly_median_price": round(float(row["monthly_median_price"]), 2),
+                    "monthly_avg_sqm": round(float(row["monthly_avg_sqm"]), 2) if pd.notnull(row["monthly_avg_sqm"]) else 0.0
+                })
+    except Exception as e:
+        print(f"[WARN] Failed to generate timeseries aggregates: {e}")
+        timeseries = []
+
     return {
         "status": "SUCCESS",
         "cadastral_area": target_area,
@@ -104,6 +133,7 @@ def get_area_metrics(area_name: str, trans_group: str = "Sales") -> dict:
             "median_price_aed": round(median_price, 2),
             "avg_sqm_price_aed": round(avg_sqm_price, 2)
         },
+        "timeseries": timeseries,
         "audit_trail": {
             "trace_sample_ids": df["transaction_id"].astype(str).head(5).tolist(),
             "latest_transaction_date": str(df["instance_date"].iloc[0])

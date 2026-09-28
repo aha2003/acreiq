@@ -17,12 +17,14 @@ Run in production (Cloud Run sets $PORT):
 import logging
 import time
 import uuid
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from src.schemas import TimeSeriesPoint
 from src.agents import AcreIQWorkflow
 
 # --------------------------------------------------------------------------
@@ -49,6 +51,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Enable CORS for React frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows local dev and any Vercel domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 workflow = AcreIQWorkflow()
 
 
@@ -66,6 +77,7 @@ class ChatResponse(BaseModel):
     discrepancies: List[str]
     source_trace_ids: List[str]
     latency_ms: int
+    timeseries: Optional[List[TimeSeriesPoint]] = None
 
 
 # --------------------------------------------------------------------------
@@ -113,6 +125,7 @@ def chat(payload: ChatRequest, request: Request):
         discrepancies=report.discrepancies,
         source_trace_ids=report.source_trace_ids,
         latency_ms=latency_ms,
+        timeseries=report.timeseries,
     )
 
 

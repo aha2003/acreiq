@@ -117,6 +117,7 @@ class AcreIQWorkflow:
 
     def run_auditor_gate(self, draft: AnalystDraft, raw_tool_data: dict) -> VerificationReport:
         discrepancies = []
+        timeseries = raw_tool_data.get("timeseries", [])
 
         if raw_tool_data.get("status") != "SUCCESS":
             reason = raw_tool_data.get("status", "NO_TOOL_CALL_MADE")
@@ -124,13 +125,13 @@ class AcreIQWorkflow:
                 is_grounded=False,
                 discrepancies=[f"NO_RECORDS_FOUND: {reason} — no verified DLD transactions to ground against."],
                 final_output=f"NOT_FOUND: No registered transaction records exist for '{draft.area_analyzed}' in DLD registry.",
-                source_trace_ids=[]
+                source_trace_ids=[],
+                timeseries=None
             )
 
         metrics = raw_tool_data.get("summary_metrics", {})
         expected_median = float(metrics.get("median_price_aed", 0.0))
         expected_avg = float(metrics.get("avg_price_aed", 0.0))
-   
 
         # Check 2: Metric grounding within 1% threshold
         if expected_median > 0 and abs(draft.median_price_aed - expected_median) > (expected_median * 0.01):
@@ -156,7 +157,8 @@ class AcreIQWorkflow:
                 is_grounded=False,
                 discrepancies=discrepancies,
                 final_output="REJECTED_BY_AUDITOR: Hallucination detected. Metrics do not match DLD records.",
-                source_trace_ids=list(raw_sample_ids)
+                source_trace_ids=list(raw_sample_ids),
+                timeseries=timeseries
             )
 
         formatted_final = (
@@ -173,7 +175,8 @@ class AcreIQWorkflow:
             is_grounded=True,
             discrepancies=[],
             final_output=formatted_final,
-            source_trace_ids=draft.sample_transaction_ids
+            source_trace_ids=draft.sample_transaction_ids,
+            timeseries=timeseries  # <--- HERE
         )
 
     def execute(self, user_prompt: str) -> VerificationReport:
