@@ -31,78 +31,45 @@ The result is an analytical system where market figures are derived from transac
 
 ## Architecture
 
-```text
-                         ┌──────────────────────────────────────┐
-                         │          CLIENT INTERFACES           │
-                         └──────────────────┬───────────────────┘
-                                            │
-                    ┌───────────────────────┼────────────────────────┐
-                    │                       │                        │
-                    ▼                       ▼                        ▼
-        ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-        │ Interactive        │  │ Headless MCP       │  │ Direct REST API    │
-        │ React / Vite       │  │ Server             │  │ FastAPI            │
-        │ Analytical         │  │ src/mcp_server.py  │  │ Google Cloud Run   │
-        │ Terminal           │  │                    │  │ me-central1        │
-        │                    │  │ Claude Desktop /   │  │                    │
-        │ Vercel             │  │ Agentic Clients    │  │ /v1/chat           │
-        └─────────┬──────────┘  └─────────┬──────────┘  └─────────┬──────────┘
-                  │                       │                       │
-                  └───────────────────────┼───────────────────────┘
-                                          │
-                                          ▼
-                              ┌──────────────────────┐
-                              │   Cadastral Entity   │
-                              │      Resolution      │
-                              │                      │
-                              │ "Downtown Dubai"     │
-                              │         ↓            │
-                              │ "burj khalifa"       │
-                              └──────────┬───────────┘
-                                         │
-                                         ▼
-                        ┌────────────────────────────────┐
-                        │         DuckDB Engine          │
-                        │                                │
-                        │  In-memory deterministic SQL   │
-                        │  ─ Median                      │
-                        │  ─ Mean                        │
-                        │  ─ Transaction volume          │
-                        │  ─ Average price / m²          │
-                        │  ─ Monthly timeseries          │
-                        │  ─ Ready / Off-Plan segments   │
-                        │  ─ Source transaction records  │
-                        └────────────────┬───────────────┘
-                                         │
-                                         ▼
-                              ┌──────────────────────┐
-                              │   Groq / LLaMA 3.3   │
-                              │  Primary Synthesizer │
-                              │                      │
-                              │  Human-readable      │
-                              │  market intelligence │
-                              └──────────┬───────────┘
-                                         │
-                                         ▼
-                        ┌────────────────────────────────┐
-                        │         AUDITOR GATE           │
-                        │                                │
-                        │  Programmatic verification     │
-                        │  against raw DuckDB results    │
-                        │                                │
-                        │  ✓ Numerical consistency       │
-                        │  ✓ Grounding status            │
-                        │  ✓ Cadastral consistency       │
-                        │  ✓ Registry provenance         │
-                        └────────────────┬───────────────┘
-                                         │
-                            ┌────────────┴────────────┐
-                            │                         │
-                     VERIFIED RESPONSE         REJECT / CIRCUIT
-                            │                         │
-                            ▼                         ▼
-                   Grounded market brief      is_grounded: false
-                   + verified DLD IDs         + discrepancy log
+```mermaid
+flowchart TD
+    subgraph Clients["CLIENT INTERFACES"]
+        direction TB
+        subgraph ClientRow[" "]
+            direction LR
+            C1["<b>Interactive Terminal</b><br/>React / Vite<br/><i>Vercel</i>"]
+            C2["<b>Headless MCP Server</b><br/>src/mcp_server.py<br/><i>Claude Desktop / Agents</i>"]
+            C3["<b>Direct REST API</b><br/>FastAPI / me-central1<br/><i>Cloud Run (/v1/chat)</i>"]
+        end
+    end
+
+    C1 --> Cadastral["<b>Cadastral Entity Resolution</b><br/>'Downtown Dubai' ➔ 'burj khalifa'"]
+    C2 --> Cadastral
+    C3 --> Cadastral
+
+    Cadastral --> DuckDB["<b>DuckDB Analytical Engine</b><br/><i>In-memory deterministic SQL</i><br/>• Median & Mean actual_worth<br/>• Transaction volume<br/>• Average price / m²<br/>• Monthly timeseries aggregation<br/>• Ready vs. Off-Plan segmentation<br/>• Source transaction records"]
+
+    DuckDB --> Synthesizer["<b>Primary Synthesizer</b><br/>Groq / LLaMA 3.3 70B<br/><i>Human-readable market brief</i>"]
+
+    Synthesizer --> Auditor{"<b>AUDITOR GATE</b><br/><i>Programmatic verification</i><br/>✓ Numerical consistency (&lt;1%)<br/>✓ Grounding status<br/>✓ Cadastral consistency<br/>✓ Registry provenance"}
+
+    Auditor -- "Verified Grounding" --> Pass["<b>VERIFIED RESPONSE</b><br/>Grounded market brief<br/>+ verified DLD IDs<br/>+ dual-axis timeseries"]
+    Auditor -- "Mismatch / Adversarial" --> Fail["<b>REJECT / CIRCUIT</b><br/>is_grounded: false<br/>+ discrepancy log"]
+
+    %% Node Styling
+    classDef clientStyle fill:#0f172a,stroke:#06b6d4,stroke-width:1.5px,color:#f8fafc;
+    classDef compStyle fill:#090d16,stroke:#334155,stroke-width:1.5px,color:#f1f5f9;
+    classDef engineStyle fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
+    classDef auditorStyle fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
+    classDef passStyle fill:#052e16,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
+    classDef failStyle fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fef2f2;
+
+    class C1,C2,C3 clientStyle;
+    class Cadastral,Synthesizer compStyle;
+    class DuckDB engineStyle;
+    class Auditor auditorStyle;
+    class Pass passStyle;
+    class Fail failStyle;
 ```
 
 The architecture deliberately separates **client experience**, **deterministic financial computation**, **LLM synthesis**, and **verification**.
