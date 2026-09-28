@@ -60,13 +60,13 @@ The result is an analytical system where market figures are derived from transac
                                          │
                                          ▼
                         ┌────────────────────────────────┐
-                        │         DuckDB Engine           │
+                        │         DuckDB Engine          │
                         │                                │
                         │  In-memory deterministic SQL   │
                         │  ─ Median                      │
                         │  ─ Mean                        │
                         │  ─ Transaction volume          │
-                        │  ─ Average price / m²           │
+                        │  ─ Average price / m²          │
                         │  ─ Monthly timeseries          │
                         │  ─ Ready / Off-Plan segments   │
                         │  ─ Source transaction records  │
@@ -75,7 +75,7 @@ The result is an analytical system where market figures are derived from transac
                                          ▼
                               ┌──────────────────────┐
                               │   Groq / LLaMA 3.3   │
-                              │  Primary Synthesizer  │
+                              │  Primary Synthesizer │
                               │                      │
                               │  Human-readable      │
                               │  market intelligence │
@@ -83,7 +83,7 @@ The result is an analytical system where market figures are derived from transac
                                          │
                                          ▼
                         ┌────────────────────────────────┐
-                        │         AUDITOR GATE            │
+                        │         AUDITOR GATE           │
                         │                                │
                         │  Programmatic verification     │
                         │  against raw DuckDB results    │
