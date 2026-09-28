@@ -2,7 +2,7 @@
 
 ### Verifiable Financial Intelligence for Dubai Real Estate
 
-[![Vercel](https://img.shields.io/badge/Vercel-Live%20Dashboard-000000?logo=vercel\&logoColor=white)](https://acreiq.com/)
+[![Vercel](https://img.shields.io/badge/Vercel-Live%20Dashboard-000000?logo=vercel\&logoColor=white)](https://acreiq.vercel.app/)
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Live%20API-4285F4?logo=googlecloud\&logoColor=white)](https://acreiq-api-zv7ueef3fq-ww.a.run.app/docs)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python\&logoColor=white)](https://www.python.org/)
 [![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react\&logoColor=000)](https://react.dev/)
