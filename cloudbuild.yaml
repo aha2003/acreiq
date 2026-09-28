@@ -42,15 +42,14 @@ steps:
       - '--region=${_REGION}'
       - '--platform=managed'
       - '--cpu=1'
-      - '--memory=1Gi'
+      - '--memory=2Gi'
       - '--concurrency=20'
       - '--min-instances=0'
       - '--max-instances=5'
       - '--timeout=60'
-      - '--set-env-vars=APP_ENV=local,CSV_PATH=data/dld_transactions.csv'
+      - '--set-env-vars=APP_ENV=local,CSV_PATH=data/dld_transactions.csv,WORKERS=1'
       - '--set-secrets=GROQ_API_KEY=groq-api-key:latest'
       - '--allow-unauthenticated'
-
 options:
   logging: CLOUD_LOGGING_ONLY
 
