@@ -10,6 +10,8 @@ COMMUNITY_ALIASES: Dict[str, str] = {
     "downtown": "burj khalifa",
     "business bay": "business bay",
     "palm jumeirah": "palm jumeirah",
+    "furjan": "al furjan",
+    "al furjan": "al furjan",
     "jumeirah village circle": "al barsha south fourth",
     "jvc": "al barsha south fourth",
     "jumeirah lakes towers": "al thanyah fifth",
@@ -21,6 +23,7 @@ COMMUNITY_ALIASES: Dict[str, str] = {
     "nad al sheba 3": "nad al shiba third",
     "nad al sheba 4": "nad al shiba fourth",
     "wadi al safaa": "wadi al safa",
+    "wadi al safa": "wadi al safa",
     "international city": "al warsan first",
     "difc": "trade center second",
 }
@@ -42,7 +45,7 @@ def get_area_metrics(
 ) -> dict:
     cleaned_input = area_name.strip().lower()
     target_area = COMMUNITY_ALIASES.get(cleaned_input, cleaned_input)
-    prefix_pattern = f"{target_area} %"
+    area_filter_pattern = f"%{target_area}%"
 
     # Map colloquial segment names to DLD registry patterns
     reg_type_filter = None
@@ -51,8 +54,9 @@ def get_area_metrics(
         if "off" in rt:
             reg_type_filter = "%off%"
         elif "ready" in rt or "exist" in rt:
-            reg_type_filter = "%exist%"
+            reg_type_filter = "%ready%"
 
+    # Robust query supporting both dld_transactions and transactions view
     sql = """
         SELECT 
             transaction_id,
@@ -61,31 +65,31 @@ def get_area_metrics(
             trans_group_en,
             reg_type_en,
             actual_worth,
-            procedure_area,
+            actual_area,
             meter_sale_price
-        FROM transactions
-        WHERE (
-            area_name_en = $area_name
-            OR area_name_en LIKE $prefix_pattern
-        )
-          AND trans_group_en = LOWER($trans_group)
+        FROM dld_transactions
+        WHERE LOWER(area_name_en) LIKE LOWER(?)
+          AND LOWER(trans_group_en) LIKE LOWER(?)
           AND actual_worth IS NOT NULL
           AND actual_worth > 0
-          AND ($reg_type_filter IS NULL OR LOWER(reg_type_en) LIKE $reg_type_filter)
-          AND ($start_date IS NULL OR instance_date >= TRY_CAST($start_date AS DATE))
-          AND ($end_date IS NULL OR instance_date <= TRY_CAST($end_date AS DATE))
+          AND (? IS NULL OR LOWER(reg_type_en) LIKE ?)
+          AND (? IS NULL OR instance_date >= TRY_CAST(? AS DATE))
+          AND (? IS NULL OR instance_date <= TRY_CAST(? AS DATE))
         ORDER BY instance_date DESC
         LIMIT 5000;
     """
     
-    params = {
-        "area_name": target_area,
-        "prefix_pattern": prefix_pattern,
-        "trans_group": trans_group,
-        "reg_type_filter": reg_type_filter,
-        "start_date": start_date,
-        "end_date": end_date
-    }
+    trans_group_pattern = f"%{trans_group.strip()}%"
+    params = [
+        area_filter_pattern,
+        trans_group_pattern,
+        reg_type_filter,
+        reg_type_filter,
+        start_date,
+        start_date,
+        end_date,
+        end_date
+    ]
     
     df = db_engine.execute_query(sql, params)
 
@@ -112,7 +116,6 @@ def get_area_metrics(
             
             grouped = temp_df.groupby("month_year")
             for month, group in grouped:
-                # DLD classifies off-plan as 'Off-Plan Properties' and ready as 'Existing Properties'
                 offplan_deals = group[group["reg_type_en"].str.lower().str.contains("off", na=False)]
                 ready_deals = group[~group["reg_type_en"].str.lower().str.contains("off", na=False)]
                 
@@ -147,5 +150,65 @@ def get_area_metrics(
         "audit_trail": {
             "trace_sample_ids": df["transaction_id"].astype(str).head(5).tolist(),
             "latest_transaction_date": str(df["instance_date"].iloc[0])
+        }
+    }
+
+def compare_areas_metrics(
+    primary_area: str,
+    secondary_area: str,
+    trans_group: str = "Sales",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> dict:
+    """Retrieves and aligns metrics for two communities side-by-side."""
+    area1_res = get_area_metrics(primary_area, trans_group=trans_group, start_date=start_date, end_date=end_date)
+    area2_res = get_area_metrics(secondary_area, trans_group=trans_group, start_date=start_date, end_date=end_date)
+
+    if area1_res.get("status") != "SUCCESS" or area2_res.get("status") != "SUCCESS":
+        return {
+            "status": "PARTIAL_OR_FAILED",
+            "area1": area1_res,
+            "area2": area2_res
+        }
+
+    # Align periods into unified timeseries points
+    ts1 = {item["month_year"]: item for item in area1_res.get("timeseries", [])}
+    ts2 = {item["month_year"]: item for item in area2_res.get("timeseries", [])}
+
+    all_periods = sorted(list(set(ts1.keys()) | set(ts2.keys())))
+    merged_timeseries = []
+
+    for period in all_periods:
+        p1 = ts1.get(period, {})
+        p2 = ts2.get(period, {})
+        merged_timeseries.append({
+            "month_year": period,
+            "area1_name": area1_res.get("input_area", primary_area),
+            "area2_name": area2_res.get("input_area", secondary_area),
+            "area1_avg_sqm": p1.get("monthly_avg_sqm"),
+            "area2_avg_sqm": p2.get("monthly_avg_sqm"),
+            "area1_volume": p1.get("volume", 0),
+            "area2_volume": p2.get("volume", 0),
+        })
+
+    a1_metrics = dict(area1_res.get("summary_metrics") or {})
+    a1_metrics["transaction_count"] = area1_res.get("transaction_count", 0)
+
+    a2_metrics = dict(area2_res.get("summary_metrics") or {})
+    a2_metrics["transaction_count"] = area2_res.get("transaction_count", 0)
+
+    return {
+        "status": "SUCCESS",
+        "is_comparison": True,
+        "primary_area": area1_res.get("input_area", primary_area),
+        "secondary_area": area2_res.get("input_area", secondary_area),
+        "area1_metrics": a1_metrics,
+        "area2_metrics": a2_metrics,
+        "timeseries": merged_timeseries,
+        "audit_trail": {
+            "trace_sample_ids": (
+                area1_res.get("audit_trail", {}).get("trace_sample_ids", [])[:3] +
+                area2_res.get("audit_trail", {}).get("trace_sample_ids", [])[:3]
+            )
         }
     }
