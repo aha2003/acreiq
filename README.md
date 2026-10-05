@@ -15,13 +15,13 @@
 
 **AcreIQ** is a full-stack analytical intelligence terminal and production API for performing verifiable financial analysis over official **Dubai Land Department (DLD)** real-estate transaction data.
 
-The current system combines an interactive **React/Vite analytical terminal**, a headless **Model Context Protocol (MCP) interface** for agentic clients, and a production **FastAPI REST API** backed by deterministic DuckDB analytics.
+The system combines an interactive **React/Vite analytical terminal**, a headless **Model Context Protocol (MCP) interface** for agentic clients, and a production **FastAPI REST API** backed by deterministic DuckDB analytics.
 
 The system is designed around a simple principle:
 
 > **LLMs may explain financial data. They do not get to define the financial truth.**
 
-Rather than relying on Vector RAG to retrieve and synthesize numerical information, AcreIQ executes deterministic SQL aggregation over transaction records using **DuckDB**, resolves natural-language locations against legal cadastral entities, separates transaction segments where required, and subjects generated responses to a programmatic **Auditor Gate** before they are returned.
+Rather than relying on Vector RAG to retrieve and synthesize numerical information, AcreIQ executes deterministic SQL aggregation over transaction records using **DuckDB**, resolves natural-language locations against legal cadastral entities, separates transaction segments where required, computes market signals directly from analytical vectors, and subjects generated responses to a programmatic **Auditor Gate** before they are returned.
 
 The result is an analytical system where market figures are derived from transaction-level ground truth, visualized through an institutional-style terminal, and traced back to underlying DLD registry records.
 
@@ -29,50 +29,51 @@ The result is an analytical system where market figures are derived from transac
 
 ---
 
-## Architecture
+# Architecture
 
 ```mermaid
 flowchart TD
+
     subgraph Clients["CLIENT INTERFACES"]
-        direction TB
-        subgraph ClientRow[" "]
-            direction LR
-            C1["<b>Interactive Terminal</b><br/>React / Vite<br/><i>Vercel</i>"]
-            C2["<b>Headless MCP Server</b><br/>src/mcp_server.py<br/><i>Claude Desktop / Agents</i>"]
-            C3["<b>Direct REST API</b><br/>FastAPI / me-central1<br/><i>Cloud Run (/v1/chat)</i>"]
-        end
+        direction LR
+
+        C1["Interactive Terminal<br/>React / Vite<br/><i>Vercel</i>"]
+        C2["Headless MCP Server<br/>src/mcp_server.py<br/><i>Agentic Clients</i>"]
+        C3["Direct REST API<br/>FastAPI<br/><i>Cloud Run /v1/chat</i>"]
     end
 
-    C1 --> Cadastral["<b>Cadastral Entity Resolution</b><br/>'Downtown Dubai' ➔ 'burj khalifa'"]
-    C2 --> Cadastral
-    C3 --> Cadastral
+    Clients --> Router["Query Intent & Routing"]
 
-    Cadastral --> DuckDB["<b>DuckDB Analytical Engine</b><br/><i>In-memory deterministic SQL</i><br/>• Median & Mean actual_worth<br/>• Transaction volume<br/>• Average price / m²<br/>• Monthly timeseries aggregation<br/>• Ready vs. Off-Plan segmentation<br/>• Source transaction records"]
+    Router --> Cadastral["Cadastral Entity Resolution<br/><br/>'Downtown Dubai' → 'burj khalifa'"]
 
-    DuckDB --> Synthesizer["<b>Primary Synthesizer</b><br/>Groq / LLaMA 3.3 70B<br/><i>Human-readable market brief</i>"]
+    Cadastral --> Analytics["DuckDB Analytical Engine<br/><br/>
+    Deterministic SQL<br/>
+    • Median & Mean<br/>
+    • Transaction Volume<br/>
+    • Average Price / m²<br/>
+    • Monthly Timeseries<br/>
+    • Ready / Off-Plan Segmentation"]
 
-    Synthesizer --> Auditor{"<b>AUDITOR GATE</b><br/><i>Programmatic verification</i><br/>✓ Numerical consistency (&lt;1%)<br/>✓ Grounding status<br/>✓ Cadastral consistency<br/>✓ Registry provenance"}
+    Analytics --> Compare["compare_areas_metrics<br/><br/>Synchronized Area A / Area B Timeseries"]
 
-    Auditor -- "Verified Grounding" --> Pass["<b>VERIFIED RESPONSE</b><br/>Grounded market brief<br/>+ verified DLD IDs<br/>+ dual-axis timeseries"]
-    Auditor -- "Mismatch / Adversarial" --> Fail["<b>REJECT / CIRCUIT</b><br/>is_grounded: false<br/>+ discrepancy log"]
+    Analytics --> Signals["get_market_signals<br/><br/>PeriodDelta<br/>MarketSignal<br/>Volume / Price Anomalies"]
 
-    %% Node Styling
-    classDef clientStyle fill:#0f172a,stroke:#06b6d4,stroke-width:1.5px,color:#f8fafc;
-    classDef compStyle fill:#090d16,stroke:#334155,stroke-width:1.5px,color:#f1f5f9;
-    classDef engineStyle fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
-    classDef auditorStyle fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
-    classDef passStyle fill:#052e16,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
-    classDef failStyle fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fef2f2;
+    Analytics --> Synth["Primary Synthesizer<br/>Groq / LLaMA 3.3<br/><br/>Market Brief / Comparative / Causal Explanation"]
 
-    class C1,C2,C3 clientStyle;
-    class Cadastral,Synthesizer compStyle;
-    class DuckDB engineStyle;
-    class Auditor auditorStyle;
-    class Pass passStyle;
-    class Fail failStyle;
+    Compare --> Synth
+    Signals --> Synth
+
+    Synth --> Auditor{"AUDITOR GATE<br/><br/>Programmatic Verification"}
+
+    Auditor -->|Verified| Response["Grounded Response<br/>+ Financial Metrics<br/>+ Provenance"]
+    Auditor -->|Mismatch / Unsupported| Reject["Reject / Circuit Breaker<br/><br/>is_grounded: false<br/>+ discrepancy log"]
+
+    Response --> UI["Adaptive Analytical UI<br/><br/>Comparative Charts<br/>Segmented Timeseries<br/>Market Signal Cards"]
 ```
 
-The architecture deliberately separates **client experience**, **deterministic financial computation**, **LLM synthesis**, and **verification**.
+The architecture deliberately separates **entity resolution, financial computation, language generation, and verification**.
+
+The LLM operates downstream of deterministic financial computation and upstream of deterministic verification.
 
 ---
 
@@ -82,30 +83,29 @@ Financial questions are particularly susceptible to hallucination.
 
 A conventional RAG architecture can retrieve relevant documents but still allow an LLM to:
 
-* Invent transaction values
-* Calculate incorrect averages
-* Conflate neighboring communities
-* Treat colloquial names as legal entities
-* Fabricate supporting records
-* Produce plausible figures when no underlying transactions exist
-* Blend materially different transaction types into a misleading statistic
+- Invent transaction values
+- Calculate incorrect averages
+- Conflate neighboring communities
+- Treat colloquial names as legal entities
+- Fabricate supporting records
+- Produce plausible figures when no underlying transactions exist
+- Misinterpret skewed distributions as representative market averages
 
 AcreIQ separates **computation** from **language generation**.
 
-| Responsibility             | System                                        |
-| -------------------------- | --------------------------------------------- |
-| Interactive analytics      | React / Vite terminal                         |
-| Entity resolution          | Deterministic cadastral lookup                |
-| Numerical computation      | DuckDB SQL                                    |
-| Transaction selection      | DLD source records                            |
-| Market segmentation        | Deterministic Ready / Off-Plan classification |
-| Timeseries computation     | DuckDB monthly aggregation                    |
-| Visualization              | Recharts                                      |
-| Natural-language synthesis | Groq / LLaMA 3.3                              |
-| Numerical verification     | Deterministic Auditor Gate                    |
-| Agentic tool interface     | MCP                                           |
-| Provenance                 | DLD registry record IDs                       |
-| Invalid-query handling     | Fast-path circuit breaker                     |
+| Responsibility | System |
+|---|---|
+| Entity resolution | Deterministic cadastral lookup |
+| Numerical computation | DuckDB SQL |
+| Transaction selection | DLD source records |
+| Market segmentation | Deterministic Ready / Off-Plan filtering |
+| Comparative analytics | `compare_areas_metrics` |
+| Market signal extraction | `get_market_signals` |
+| Natural-language synthesis | Groq / LLaMA 3.3 |
+| Numerical verification | Deterministic Auditor Gate |
+| Provenance | DLD registry record IDs |
+| Invalid-query handling | Fast-path circuit breaker |
+| Visualization | React / Recharts |
 
 The LLM is therefore a **synthesis layer**, not the source of numerical truth.
 
@@ -119,16 +119,17 @@ AcreIQ loads the DLD transaction dataset into container memory and uses DuckDB f
 
 Queries calculate metrics directly from transaction records, including:
 
-* Median transaction price
-* Mean transaction price
-* Transaction volume
-* Average price per square metre
-* Monthly transaction volume
-* Monthly average price/m²
-* Underlying transaction records
-* Registry identifiers
+- Median transaction price
+- Mean transaction price
+- Transaction volume
+- Average price per square metre
+- Monthly transaction timeseries
+- Underlying transaction records
+- DLD registry identifiers
 
 This avoids asking a generative model to perform financial arithmetic or infer statistics from retrieved text.
+
+The current analytical source is the **2026 Year-to-Date (YTD) DLD transaction dataset**, approximately **28 MB** in raw size.
 
 ---
 
@@ -172,74 +173,242 @@ This prevents geographically ambiguous natural-language queries from silently pr
 
 ---
 
-## 3. Segmented Market Dynamics
+## 3. Multi-Area Comparative Analytics
 
-AcreIQ explicitly distinguishes between **Ready** and **Off-Plan** transaction activity.
+AcreIQ supports direct comparative market queries such as:
 
-This distinction is important because the two categories represent materially different market mechanisms:
+```text
+"Compare Business Bay and Al Furjan"
+```
 
-* **Existing Properties / Ready** — secondary-market transactions involving completed properties.
-* **Off-Plan Properties** — development contracts originating from off-plan sales.
+Rather than running two independent summaries and leaving the model to reconcile them, the backend uses the deterministic:
 
-Combining these transactions into a single statistic can distort the observed market distribution, particularly when one segment has materially different pricing or transaction volume characteristics.
+```text
+compare_areas_metrics
+```
 
-AcreIQ therefore allows the analytical layer to decouple these segments before calculating market statistics.
+analytical tool.
 
-| Ready Properties (Secondary Resale) | Off-Plan Properties (Development Contracts) |
-| :---: | :---: |
-| ![Ready Timeseries](docs/assets/ready_timeseries.png) | ![Off-Plan Timeseries](docs/assets/offplan_timeseries.png) |
-| *14-month historical trajectory showing Ready prices peaking at AED 19,603/m²* | *9-month construction trajectory showing Off-Plan peaking at AED 24,048/m²* |
+The tool resolves both areas independently and produces a synchronized monthly payload containing:
 
-The terminal exposes these segments as explicit market-type filters rather than hiding them inside a single aggregate.
+- Area A transaction volume
+- Area A average price / m²
+- Area B transaction volume
+- Area B average price / m²
+- Shared monthly time axis
+- Market-type filtering
+- Requested duration
+
+Conceptually:
+
+```text
+             Natural-Language Query
+                       │
+                       ▼
+             Resolve Area A / Area B
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+         Area A DLD         Area B DLD
+              │                 │
+              └────────┬────────┘
+                       ▼
+              compare_areas_metrics
+                       │
+                       ▼
+             Synchronized Timeseries
+                       │
+                       ▼
+              Comparative Analysis
+```
+
+This preserves the same deterministic analytical foundation used for single-area queries while allowing the terminal to reason over two markets simultaneously.
+
+### Adaptive Comparative Visualization
+
+The frontend detects comparative analytical payloads and automatically switches the visualization mode.
+
+Comparative queries render:
+
+- Dual transaction-volume bars
+- Area A price / m² line
+- Area B price / m² line
+- Shared monthly axis
+- Area-specific labels
+
+Non-comparative queries fall back to the standard segmented market visualization.
+
+![Comparative AcreIQ Dashboard](docs/assets/comparative_dashboard.png)
+
+The interface therefore adapts to the **structure of the analytical result**, rather than forcing every query into the same chart.
 
 ---
 
-## 4. Dual-Axis Market Timeseries
+## 4. Segmented Market Dynamics
 
-AcreIQ extends point-in-time metrics into a multi-month analytical timeseries. 
+AcreIQ separates **Ready** and **Off-Plan** transactions where aggregating them together would distort market interpretation.
 
-The terminal plots transaction volume distributions along the secondary axis concurrently with isolated Ready and Off-Plan price/m² trajectories on the primary axis:
+The system supports explicit market-type filtering:
 
-![Dual-Axis Timeseries Dynamics](docs/assets/dual_axis_timeseries.png)
+```text
+All
+Ready
+Off-Plan
+```
 
-The visualization combines:
+The analytical layer distinguishes transaction types using the underlying DLD fields rather than asking the language model to infer whether a transaction belongs to a particular market segment.
 
-1. **Monthly transaction volume bars**
-2. **Ready average price/m² trajectory**
-3. **Off-Plan average price/m² trajectory**
-
-This allows analysts to evaluate liquidity surges (volume bars) alongside price per square meter shifts without masking developer premiums or secondary market movements.
-
-The underlying values are computed from the analytical dataset rather than generated by the LLM.
+This is particularly important when high-value off-plan development contracts can materially influence aggregate statistics.
 
 ---
 
-## 5. Interactive Market Filtering
+## 5. Dual-Axis Market Timeseries
 
-The terminal provides rapid filtering over the analytical timeseries.
+AcreIQ generates monthly market timeseries directly from DuckDB.
 
-### Duration filters
+The standard market view combines:
 
-* **3M** — recent three-month window
-* **6M** — recent six-month window
-* **1Y** — recent one-year window
-* **All Time** — full available dataset period
+- Transaction volume
+- Average price per square metre
+- Ready-market pricing
+- Off-plan pricing
 
-These filters can be driven through the interactive terminal as well as interpreted from natural-language analytical requests.
+The terminal supports duration filters:
 
-### Market-type filters
+```text
+3M
+6M
+1Y
+All Time
+```
 
-Users can toggle between:
+For standard market queries, the frontend renders transaction volume alongside Ready and Off-Plan price trajectories.
 
-* **All**
-* **Ready**
-* **Off-Plan**
+For comparative queries, the same analytical layer produces synchronized Area A / Area B series.
 
-This allows the same underlying analytical model to answer both aggregate and segment-specific market questions without requiring separate datasets or manually reconstructed queries.
+![Segmented AcreIQ Timeseries](docs/assets/segmented_timeseries.png)
+
+This allows users to distinguish between:
+
+- Changes in transaction activity
+- Changes in unit pricing
+- Ready-market movement
+- Off-plan pricing
+- Relative movement between two geographical markets
 
 ---
 
-## 6. Dual-Agent Synthesis + Auditor Gate
+## 6. Deterministic Market Signals
+
+AcreIQ does not rely exclusively on the LLM to identify unusual market behavior.
+
+The backend computes explicit market signals from DuckDB-derived monthly vectors through:
+
+```text
+get_market_signals
+```
+
+The signal extraction layer calculates values such as:
+
+- Period price delta
+- Latest versus earliest average price / m²
+- Monthly transaction volume
+- Relative volume changes
+- Signal classification
+- Confidence level
+
+Example signal logic includes:
+
+```text
+PRICE_SURGE
+    Period delta >= +15%
+
+PRICE_DECLINE
+    Period delta <= -15%
+
+VOLUME_SPIKE
+    Latest volume >= 1.5 × prior volume
+
+STABLE
+    No configured anomaly threshold exceeded
+```
+
+The resulting analytical object contains both the deterministic signal and the monthly observations from which it was derived.
+
+Conceptually:
+
+```text
+DLD Transactions
+       │
+       ▼
+Monthly DuckDB Vectors
+       │
+       ├── Average Price / m²
+       │
+       └── Transaction Volume
+              │
+              ▼
+        PeriodDelta
+              │
+              ▼
+        MarketSignal
+              │
+              ▼
+       LLM Interpretation
+```
+
+The frontend exposes these outputs as explicit **market-signal drill-down cards**, keeping the underlying signal separate from the generated narrative.
+
+---
+
+## 7. Causal Market Investigations
+
+AcreIQ distinguishes ordinary market-summary queries from investigative questions.
+
+Queries containing intents such as:
+
+```text
+Why...
+Explain...
+What caused...
+What is driving...
+What explains...
+```
+
+are routed through a dedicated causal-analysis path.
+
+Instead of asking the model to invent an explanation for a market movement, AcreIQ first retrieves deterministic financial signals and passes those observations into a constrained empirical decomposition.
+
+The intended reasoning structure is:
+
+```text
+Observed DLD Data
+       │
+       ▼
+Market Signal
+       │
+       ▼
+Observed Change
+       │
+       ▼
+Empirical Decomposition
+       │
+       ▼
+Possible Explanations
+       │
+       ▼
+Human-Readable Investigation
+```
+
+The distinction is deliberate:
+
+> **Observed financial movement is derived from DLD data. Explanations remain interpretations of those observations.**
+
+This prevents the causal-analysis layer from being treated as an alternative source of financial ground truth.
+
+---
+
+## 8. Dual-Agent Synthesis + Auditor Gate
 
 AcreIQ separates generation from verification.
 
@@ -249,11 +418,12 @@ The Groq-hosted LLaMA 3.3 model receives the verified analytical slice and produ
 
 Its role is to:
 
-* Interpret computed statistics
-* Explain market characteristics
-* Produce readable financial summaries
-* Surface relevant transaction evidence
-* Explain observed market dynamics
+- Interpret computed statistics
+- Explain market characteristics
+- Produce readable financial summaries
+- Compare analytical results
+- Interpret deterministic market signals
+- Surface relevant transaction evidence
 
 ### Deterministic Auditor Gate
 
@@ -268,25 +438,19 @@ DuckDB Ground Truth
 
         │
 
-        ├── median = 2,635,000
-
-        ├── mean   = 3,797,000
-
-        └── avg/m² = 29,292.58
+        ├── median = deterministic value
+        ├── mean   = deterministic value
+        └── avg/m² = deterministic value
 
                   │
-
                   ▼
 
           Generated Response
 
                   │
-
                   ▼
 
             Auditor Gate
-
-                  │
 
           ┌───────┴───────┐
           │               │
@@ -298,53 +462,44 @@ DuckDB Ground Truth
 
 A response is not considered grounded merely because the LLM produced a plausible answer.
 
+![AcreIQ Auditor Ledger](docs/assets/auditor_ledger.png)
+
 ---
 
-## 7. Traceable DLD Provenance
+## 9. Traceable DLD Provenance
 
 AcreIQ surfaces exact DLD registry record identifiers associated with analytical results.
 
-Example:
+Representative 2026 examples include:
 
 ```text
-1-102-2023-13201
-
-1-11-2023-7742
-
-...
+41-14173-2026
+11-29652-2026
 ```
 
 This creates a direct provenance path:
 
 ```text
 Natural-language query
-
         ↓
-
 Cadastral entity
-
         ↓
-
 SQL aggregation
-
         ↓
-
 Transaction slice
-
         ↓
-
 DLD registry IDs
-
         ↓
-
 Generated explanation
+        ↓
+Auditor Gate
 ```
 
 The system therefore provides an audit trail rather than an opaque generated number.
 
 ---
 
-## 8. Adversarial Query Rejection
+## 10. Adversarial Query Rejection
 
 AcreIQ explicitly handles queries for entities that do not exist in the underlying DLD data.
 
@@ -375,64 +530,67 @@ This is an intentional failure mode.
 
 # Production Benchmark
 
-The following results are from the project's evaluation runs against the production deployment.
+The following results are representative evaluation outputs from the production deployment using the current **2026 YTD DLD dataset**.
 
-| Scenario                   | Cadastral Resolution         | Analytical Output                                                                | Grounded                 |         Latency |
-| -------------------------- | ---------------------------- | -------------------------------------------------------------------------------- | ------------------------ | --------------: |
-| **Downtown Dubai**         | `burj khalifa`               | 500 records; Median **AED 2.635M**; Avg **AED 3.797M**; Avg **AED 29,292.58/m²** | `true` — 0 discrepancies |     ~13.6s cold |
-| **Palm Jumeirah**          | `palm jumeirah`              | 500 records; Median **AED 3.425M**; Avg **AED 6.868M**; Avg **AED 27,956.18/m²** | `true`                   |      ~5.9s warm |
-| **Winterfell High Street** | No verified cadastral entity | No transaction ground truth                                                      | `false`                  | ~1.8s fast-path |
+| Scenario | Cadastral Resolution | Analytical Output | Grounded |
+|---|---|---|---|
+| **Downtown Dubai** | `burj khalifa` | **1,643 records**; Median **AED 3.100M**; Avg **AED 5.361M**; Avg **AED 32,040.55/m²** | `true` |
+| **Palm Jumeirah** | `palm jumeirah` | **846 records**; Median **AED 5.900M**; Avg **AED 13.665M**; Avg **AED 43,318.00/m²** | `true` |
+| **Winterfell High Street** | No verified cadastral entity | No transaction ground truth | `false` |
 
 ### Warm Production Performance
 
-With the analytical dataset already resident in the Cloud Run container, the current architecture targets **sub-3.5-second warm round trips** for supported analytical queries, while maintaining:
+With the analytical dataset resident in the Cloud Run container, the architecture targets **sub-3.5-second warm round trips** for supported analytical queries, while maintaining:
 
-* **0 discrepancies** on verified benchmark responses
-* Deterministic DuckDB computation
-* Auditor Gate validation
-* Full DLD registry-record provenance
+- Deterministic DuckDB computation
+- Auditor Gate validation
+- Full DLD registry-record provenance
+- Explicit grounding status
+- Fast-path rejection for unsupported entities
 
 Cold-start requests remain materially slower because the analytical dataset must first be loaded into container memory.
 
-### Observed Financial Signal
+---
+
+## Observed Financial Signal
 
 The Palm Jumeirah benchmark demonstrates why reporting multiple statistics matters.
 
 ```text
-Median:     AED 3.425M
-
-Mean:       AED 6.868M
+Median:     AED 5.900M
+Mean:       AED 13.665M
 ```
 
 The large difference between the median and mean reflects the influence of high-value transactions, consistent with the project's observed **luxury-villa skew**.
 
 AcreIQ therefore exposes both statistics rather than collapsing the market into a single generated "average price."
 
-### Verified Provenance
+The median represents the central transaction more robustly under this skew, while the substantially higher mean exposes the extent to which high-value transactions influence the aggregate distribution.
+
+---
+
+## Verified Provenance
 
 Successful queries return DLD registry IDs, including examples such as:
 
 ```text
-1-102-2023-13201
-
-1-11-2023-7742
-
-...
+41-14173-2026
+11-29652-2026
 ```
+
+These identifiers provide a trace from the generated analytical response back to the underlying DLD transaction records.
 
 ---
 
 # Production API
 
-**Live Swagger / OpenAPI documentation:**
-
-https://acreiq-api-zv7ueef3fq-ww.a.run.app/docs
-
-Primary endpoint:
+**Primary endpoint:**
 
 ```text
 POST /v1/chat
 ```
+
+**Live Swagger / OpenAPI documentation:** the production API is deployed through Google Cloud Run.
 
 ## Example: Grounded Query
 
@@ -447,23 +605,44 @@ curl -X POST \
 
 A successful response is grounded against the resolved DLD cadastral entity and includes deterministic analytical values and transaction provenance.
 
-Representative analytical output:
+Representative 2026 analytical output:
 
 ```text
 Cadastral: burj khalifa
 
-Records analysed: 500
+Records analysed: 1,643
 
-Median price: AED 2.635M
+Median price: AED 3.100M
 
-Average price: AED 3.797M
+Average price: AED 5.361M
 
-Average price/m²: AED 29,292.58
+Average price/m²: AED 32,040.55
 
 Grounded: true
-
-Discrepancies: 0
 ```
+
+---
+
+## Example: Comparative Query
+
+```bash
+curl -X POST \
+  "https://acreiq-api-zv7ueef3fq-ww.a.run.app/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Compare Business Bay and Al Furjan"
+  }'
+```
+
+Comparative requests are routed to:
+
+```text
+compare_areas_metrics
+```
+
+and return a synchronized analytical structure suitable for dual-area visualization.
+
+---
 
 ## Example: Adversarial Probe
 
@@ -495,75 +674,66 @@ The system rejects the query instead of generating unsupported financial figures
 
 A typical production request follows this sequence:
 
-```mermaid
-flowchart TD
-    Req["<b>POST /v1/chat</b><br/><i>Inbound Client Request</i>"] --> Val["<b>FastAPI Validation</b><br/>Strict Pydantic Input Schemas"]
-    Val --> Cadastral{"<b>Cadastral Entity Resolution</b><br/>Colloquial to DLD Registry Key"}
-
-    %% Unsupported / Adversarial Branch
-    Cadastral -- "No Verified Cadastral Match" --> Circuit["<b>Fast-Path Circuit Breaker</b><br/>No database compute / zero LLM spend"]
-    Circuit --> Reject["<b>is_grounded: false</b><br/>• NO_RECORDS_FOUND<br/>• Discrepancy log generated"]
-
-    %% Grounded / Supported Path
-    Cadastral -- "Verified Cadastral Entity" --> DuckDB["<b>DuckDB Analytical Engine</b><br/><i>In-memory deterministic vectorized SQL</i><br/>• Transaction count<br/>• Median & Mean actual_worth<br/>• Average price / m²<br/>• Monthly timeseries aggregation<br/>• Ready vs. Off-Plan segmentation<br/>• Authoritative DLD registry IDs"]
-
-    DuckDB --> Synthesizer["<b>Groq / LLaMA 3.3 Synthesis</b><br/>Generates natural-language market brief"]
-
-    Synthesizer --> Auditor{"<b>Auditor Gate</b><br/><i>Deterministic Grounding Check</i><br/>• Numerical verification (&lt;1% delta)<br/>• Cadastral consistency<br/>• Provenance verification"}
-
-    Auditor -- "Auditor Pass (0 Discrepancies)" --> Success["<b>Verified API Response</b><br/>• Grounded market brief<br/>• Verified DLD registry trace IDs<br/>• Segmented timeseries payload"]
-    Auditor -- "Auditor Fail" --> Circuit
-
-    %% Styling
-    classDef entry fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
-    classDef process fill:#0b1120,stroke:#334155,stroke-width:1.5px,color:#e2e8f0;
-    classDef engine fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
-    classDef decision fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
-    classDef success fill:#052e16,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
-    classDef failure fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fef2f2;
-
-    class Req entry;
-    class Val,Synthesizer process;
-    class Cadastral,Auditor decision;
-    class DuckDB engine;
-    class Success success;
-    class Circuit,Reject failure;
+```text
+POST /v1/chat
+      │
+      ▼
+FastAPI validation
+      │
+      ▼
+Query intent detection
+      │
+      ├───────────────┬────────────────┐
+      ▼               ▼                ▼
+ Standard         Comparative       Causal
+ Query            Query             Query
+      │               │                │
+      └───────────────┴────────────────┘
+                      │
+                      ▼
+             Cadastral Resolution
+                      │
+                      ▼
+              DuckDB Analytical Query
+                      │
+             ┌────────┼─────────┐
+             ▼        ▼         ▼
+          Metrics  Timeseries  Signals
+             │        │         │
+             └────────┴─────────┘
+                      │
+                      ▼
+              Groq / LLaMA 3.3
+                      │
+                      ▼
+                  Auditor Gate
+                      │
+             ┌────────┴────────┐
+             ▼                 ▼
+        Verified            Rejected
+        Response            Response
+             │                 │
+             ▼                 ▼
+       Provenance IDs      is_grounded:false
 ```
----
 
-# Client Interfaces
+For unsupported entities:
 
-AcreIQ is no longer limited to direct API consumption. The analytical engine is exposed through three complementary interfaces.
-
-| Interface            | Technology                         | Purpose                              | Deployment          |
-| -------------------- | ---------------------------------- | ------------------------------------ | ------------------- |
-| Interactive Terminal | React / Vite / Tailwind / Recharts | Human-facing analytical dashboard    | Vercel              |
-| MCP Server           | Model Context Protocol             | Agentic / headless analytical access | `src/mcp_server.py` |
-| REST API             | FastAPI                            | Programmatic integration             | Google Cloud Run    |
-
-### Interactive Terminal
-
-The React/Vite frontend provides an institutional-style analytical interface for:
-
-* Natural-language market queries
-* Market segmentation
-* Duration filtering
-* Ready / Off-Plan toggling
-* Monthly transaction volume analysis
-* Average price/m² timeseries
-* Grounding and provenance visibility
-
-### MCP Interface
-
-`src/mcp_server.py` exposes AcreIQ's analytical capabilities to MCP-compatible agentic clients.
-
-This allows clients such as Claude Desktop to interact with the same deterministic analytical layer without bypassing the underlying grounding architecture.
-
-### REST Interface
-
-The FastAPI service remains the direct machine-to-machine interface.
-
-This provides a stable API surface for applications, automated workflows, and external agent systems.
+```text
+POST /v1/chat
+      │
+      ▼
+Cadastral resolution
+      │
+      ▼
+No verified records
+      │
+      ▼
+Fast-Path Circuit Breaker
+      │
+      ▼
+is_grounded: false
+```
 
 ---
 
@@ -575,75 +745,46 @@ AcreIQ is deployed serverlessly on **Google Cloud Run** in:
 me-central1
 ```
 
-The production architecture separates the Vercel-hosted client from the analytical backend:
-
-```mermaid
-flowchart TD
-    Users["<b>Users / Agents</b><br/><i>Human & Autonomous Query Traffic</i>"]
-
-    subgraph Ingress["Client Entrypoints"]
-        direction LR
-        UI["<b>React / Vite</b><br/><i>Vercel Edge Network</i>"]
-        MCP["<b>MCP Clients</b><br/><i>Claude Desktop / Agents</i>"]
-        REST["<b>REST Clients</b><br/><i>Direct Programmatic API</i>"]
-    end
-
-    Users --> UI
-    Users --> MCP
-    Users --> REST
-
-    subgraph GCP["Google Cloud Platform (me-central1)"]
-        direction TB
-        CR["<b>Google Cloud Run</b><br/><i>Serverless Execution Layer</i>"]
-        
-        subgraph Runtime["AcreIQ Container"]
-            direction TB
-            App["<b>FastAPI & Analytical Core</b><br/>Non-Root Container"]
-            DuckRAM[("<b>DuckDB (In-Memory)</b><br/>Vectorized OLAP RAM")]
-            Dataset[("<b>DLD Transactions</b><br/>600MB Calibrated 2023 Dataset")]
-            
-            App --> DuckRAM
-            DuckRAM --> Dataset
-        end
-
-        Secret[("<b>Secret Manager</b><br/>GROQ_API_KEY")]
-    end
-
-    UI --> CR
-    MCP --> CR
-    REST --> CR
-
-    CR --> App
-    CR -.->|Dynamic Key Injection| Secret
-    App -.->|Secure LLM Inference| Groq["<b>Groq Cloud</b><br/>LLaMA 3.3 70B Versatile"]
-
-    %% Node Styling
-    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
-    classDef cloud fill:#022c22,stroke:#10b981,stroke-width:1.5px,color:#ecfdf5;
-    classDef data fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
-    classDef sec fill:#450a0a,stroke:#f59e0b,stroke-width:1.5px,color:#fffbeb;
-
-    class UI,MCP,REST client;
-    class CR,App cloud;
-    class DuckRAM,Dataset,Groq data;
-    class Secret sec;
-```
 The deployment is designed for low idle cost while retaining bounded production capacity.
+
+```text
+                         Google Cloud
+
+                              │
+
+                              ▼
+
+                    ┌──────────────────┐
+                    │    Cloud Run     │
+                    │    me-central1   │
+                    └────────┬─────────┘
+                             │
+                  ┌──────────┴──────────┐
+                  │                     │
+                  ▼                     ▼
+           AcreIQ Container       Secret Manager
+                  │                     │
+                  │                GROQ_API_KEY
+                  │
+                  ▼
+             DuckDB RAM
+                  │
+                  ▼
+          2026 YTD DLD Data
+```
 
 ### Runtime Configuration
 
-| Configuration       |                       Value |
-| ------------------- | --------------------------: |
-| Region              |               `me-central1` |
-| Minimum instances   |                         `0` |
-| Maximum instances   |                         `5` |
-| Request timeout     |                       `60s` |
-| Container execution |                    Non-root |
-| Secrets             | Google Cloud Secret Manager |
-| LLM provider        |                        Groq |
-| Analytical engine   |                      DuckDB |
-| Frontend            |                      Vercel |
-| Frontend framework  |                React / Vite |
+| Configuration | Value |
+|---|---:|
+| Region | `me-central1` |
+| Minimum instances | `0` |
+| Maximum instances | `5` |
+| Request timeout | `60s` |
+| Container execution | Non-root |
+| Secrets | Google Cloud Secret Manager |
+| LLM provider | Groq |
+| Analytical engine | DuckDB |
 
 ### Scale-to-Zero
 
@@ -655,63 +796,53 @@ Cloud Run is configured with:
 
 This provides **$0 idle compute cost** when no instances are running.
 
-The trade-off is cold-start latency: the first request can take approximately **10–13 seconds**, primarily due to loading the analytical dataset into container memory.
+The trade-off is cold-start latency: the first request can take materially longer because the analytical dataset must first be loaded into container memory.
 
-Warm requests target **sub-3.5-second round trips** for supported analytical workloads once the container is warm.
+Warm requests execute substantially faster once the analytical dataset is resident.
 
 ---
 
 # Security
 
-The production backend follows several baseline security practices:
+The production container follows several baseline security practices:
 
-* Runs as a **non-root user**
-* Uses multi-stage Docker builds
-* Keeps API credentials outside the image
-* Injects `GROQ_API_KEY` dynamically through **Google Cloud Secret Manager**
-* Limits Cloud Run concurrency through bounded instance configuration
-* Uses strict Pydantic request/response schemas
-* Separates the public client from backend credentials
+- Runs as a **non-root user**
+- Uses multi-stage Docker builds
+- Keeps API credentials outside the image
+- Injects `GROQ_API_KEY` dynamically through **Google Cloud Secret Manager**
+- Limits Cloud Run capacity through bounded instance configuration
+- Uses strict Pydantic request/response schemas
 
 Secrets should never be committed to the repository or baked into Docker layers.
-
-The frontend does not contain the Groq API credential or other backend secrets.
 
 ---
 
 # Data Architecture
 
-```mermaid
-flowchart TD
-    DLD["<b>DLD Source Data</b><br/>Official Registry Transactions"] --> Records["<b>Transaction Records</b><br/>~600 MB Raw Tabular Data"]
-    Records --> Memory["<b>Container Memory</b><br/>In-Memory RAM Buffer (me-central1)"]
-    Memory --> DuckDB[("<b>DuckDB OLAP Engine</b><br/>Vectorized SQL Analytics")]
+AcreIQ currently operates over approximately **28 MB of Dubai Land Department 2026 Year-to-Date transaction data**.
 
-    subgraph Operations["Execution Primitives"]
-        direction TB
-        OP1["<b>Cadastral Filtering</b><br/><i>Maps colloquial inputs to master zone keys</i>"]
-        OP2["<b>Ready / Off-Plan Segmentation</b><br/><i>Decouples secondary resales from developer contracts</i>"]
-        OP3["<b>Monthly Aggregation</b><br/><i>Buckets dual-axis volume and price/m² timeseries</i>"]
-        OP4["<b>Statistical Computation</b><br/><i>Calculates true median, mean, and rate distributions</i>"]
-        OP5["<b>Provenance Extraction</b><br/><i>Isolates traceable source DLD registry IDs</i>"]
-    end
+The analytical path is intentionally simple:
 
-    DuckDB --> OP1
-    DuckDB --> OP2
-    DuckDB --> OP3
-    DuckDB --> OP4
-    DuckDB --> OP5
-
-    %% Styling
-    classDef source fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc;
-    classDef mem fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#e0e7ff;
-    classDef db fill:#022c22,stroke:#10b981,stroke-width:2px,color:#ecfdf5;
-    classDef ops fill:#0b1120,stroke:#334155,stroke-width:1.5px,color:#e2e8f0;
-
-    class DLD,Records source;
-    class Memory mem;
-    class DuckDB db;
-    class OP1,OP2,OP3,OP4,OP5 ops;
+```text
+DLD Source Data
+      │
+      ▼
+Transaction Records
+      │
+      ▼
+Container Memory
+      │
+      ▼
+DuckDB
+      │
+      ├── Cadastral filtering
+      ├── Entity resolution
+      ├── Aggregation
+      ├── Market segmentation
+      ├── Timeseries computation
+      ├── Comparative analysis
+      ├── Market signal extraction
+      └── Provenance extraction
 ```
 
 DuckDB provides an embedded analytical database without requiring a separate database service for the transactional analytical workload.
@@ -720,34 +851,24 @@ This keeps the architecture lightweight while allowing SQL-based analytical oper
 
 ---
 
-# Data Scope & Limitations
+# Data Scope
 
-The current AcreIQ deployment uses a Dubai Land Department open transaction dataset covering the **2023 calendar year**.
+The current AcreIQ deployment uses a **Dubai Land Department 2026 Year-to-Date (YTD) transaction dataset**.
 
-Accordingly:
+| Attribute | Coverage |
+|---|---|
+| Source | Dubai Land Department |
+| Dataset type | Real-estate transaction records |
+| Geographic scope | Dubai, UAE |
+| Temporal scope | **2026 Year-to-Date (YTD)** |
+| Raw dataset size | **~28 MB** |
+| Analytical engine | DuckDB |
+| Storage model | In-memory |
+| Market segmentation | Ready / Off-Plan |
+| Comparative analysis | Multi-area |
+| Market signals | Deterministic |
 
-* All analytical results are based on 2023 transactions only.
-* Reported transaction volumes represent records available in the 2023 dataset, not total historical DLD activity.
-* Median, mean, and price/m² statistics describe the 2023 observed transaction sample.
-* Timeseries visualizations operate within the temporal coverage of the available dataset.
-* The current system does not provide a continuous multi-year historical market series.
-* Results should not be interpreted as representing current 2026 market conditions.
-* Queries concerning post-2023 conditions are outside the temporal coverage of the underlying dataset.
-
-The analytical architecture can support additional temporal data as the underlying source dataset is expanded, but the current deployment should be understood strictly within its available source-data coverage.
-
-### Dataset Coverage
-
-| Attribute           | Coverage                        |
-| ------------------- | ------------------------------- |
-| Source              | Dubai Land Department           |
-| Dataset type        | Real-estate transaction records |
-| Geographic scope    | Dubai, UAE                      |
-| Temporal scope      | **2023 calendar year**          |
-| Raw dataset size    | ~600 MB                         |
-| Analytical engine   | DuckDB                          |
-| Storage model       | In-memory                       |
-| Market segmentation | Ready / Off-Plan                |
+All financial metrics are computed from the currently loaded DLD source data rather than generated from retrieved prose.
 
 ---
 
@@ -756,27 +877,28 @@ The analytical architecture can support additional temporal data as the underlyi
 ```text
 .
 ├── src/
-│   ├── agents.py              # Dual-agent synthesis & grounding logic
+│   ├── agents.py              # Query routing, synthesis & grounding logic
 │   ├── api.py                 # FastAPI REST endpoints
 │   ├── config.py              # Environment settings
 │   ├── db.py                  # DuckDB connection & query execution
 │   ├── mcp_server.py          # Model Context Protocol / tool server
 │   ├── schemas.py             # Strict Pydantic I/O models
-│   └── tools.py               # Cadastral lookup & data extraction
+│   └── tools.py               # Cadastral lookup & analytical tools
 │
 ├── web/
 │   ├── src/
 │   │   ├── App.tsx            # Main analytical terminal
-│   │   └── types.ts           # Frontend data and API types
-│   ├── package.json           # Frontend dependencies & scripts
-│   ├── index.html             # Vite application entry
+│   │   ├── types.ts           # Frontend data & API types
+│   │   └── components/        # Analytical UI components
+│   ├── package.json            # Frontend dependencies & scripts
+│   ├── index.html              # Vite application entry
 │   └── ...
 │
 ├── tests/
 │   ├── eval_runner.py         # Evaluation test runner
 │   └── golden_eval_set.json   # Test fixtures & edge cases
 │
-├── Dockerfile                 # Multi-stage non-root backend container
+├── Dockerfile                 # Multi-stage non-root container
 ├── cloudbuild.yaml            # GCP Cloud Build CI/CD specification
 ├── requirements.txt           # Python dependencies
 └── ...
@@ -788,21 +910,20 @@ The analytical architecture can support additional temporal data as the underlyi
 
 ## Prerequisites
 
-* Python 3.11+
-* Node.js / npm
-* Docker
-* Access to the 2023 DLD transaction dataset
-* Groq API key for LLM synthesis
+- Python 3.11+
+- Node.js / npm
+- Docker
+- Access to the DLD transaction dataset
+- Groq API key for LLM synthesis
 
 ---
 
-## Backend — Python Virtual Environment
+## Option 1 — Python Virtual Environment
 
 Clone the repository:
 
 ```bash
 git clone <repository-url>
-
 cd AcreIQ
 ```
 
@@ -812,7 +933,6 @@ Create and activate a virtual environment.
 
 ```bash
 python3.11 -m venv .venv
-
 source .venv/bin/activate
 ```
 
@@ -820,7 +940,6 @@ source .venv/bin/activate
 
 ```powershell
 py -3.11 -m venv .venv
-
 .venv\Scripts\activate
 ```
 
@@ -933,11 +1052,13 @@ Key evaluation dimensions include:
 2. Transaction retrieval
 3. Numerical correctness
 4. Market segmentation
-5. Timeseries correctness
-6. Grounding status
-7. Provenance extraction
-8. Adversarial rejection
-9. Fast-path behavior
+5. Comparative analytics
+6. Timeseries correctness
+7. Market signal extraction
+8. Grounding status
+9. Provenance extraction
+10. Adversarial rejection
+11. Fast-path behavior
 
 The important distinction is that **LLM fluency is not treated as evaluation success**.
 
@@ -959,194 +1080,112 @@ Natural-language geography is mapped to legal cadastral identifiers before trans
 
 Ready and Off-Plan transactions are analytically separated where combining them would distort market statistics.
 
-### 4. Verify After Generation
+### 4. Compare Deterministically
+
+Multi-area comparisons are computed through synchronized DuckDB timeseries rather than asking the LLM to reconcile independently generated summaries.
+
+### 5. Extract Signals Before Explaining Them
+
+Market anomalies such as price deltas and volume spikes are calculated deterministically before being passed to the language model for interpretation.
+
+### 6. Verify After Generation
 
 The generated response passes through a deterministic Auditor Gate before being considered grounded.
 
-### 5. Preserve Provenance
+### 7. Preserve Provenance
 
 Analytical claims retain references to underlying DLD registry records.
 
-### 6. Fail Closed
+### 8. Fail Closed
 
 When there is no verified source data, AcreIQ does not manufacture an answer.
 
-### 7. Separate Interfaces from Ground Truth
+### 9. Separate Interfaces from Ground Truth
 
-The React terminal, MCP clients, and REST API are interfaces to the same deterministic analytical engine. None of them become an alternative source of financial truth.
+The React terminal, MCP clients, and REST API are interfaces to the same deterministic analytical engine.
 
-### 8. Optimize for Production Constraints
+None of them become an alternative source of financial truth.
+
+### 10. Optimize for Production Constraints
 
 The architecture deliberately balances:
 
-* Analytical correctness
-* LLM flexibility
-* Warm-query latency
-* Cold-start latency
-* Infrastructure cost
-* Container security
-* Operational simplicity
+- Analytical correctness
+- LLM flexibility
+- Comparative analytical capability
+- Warm-query latency
+- Cold-start latency
+- Infrastructure cost
+- Container security
+- Operational simplicity
 
 ---
 
 # Technology Stack
 
-| Layer               | Technology                              |
-| ------------------- | --------------------------------------- |
-| Frontend            | React                                   |
-| Frontend Build Tool | Vite                                    |
-| Styling             | Tailwind CSS                            |
-| Data Visualization  | Recharts                                |
-| API                 | FastAPI                                 |
-| Language            | Python 3.11+                            |
-| Analytical Database | DuckDB                                  |
-| LLM                 | Groq / LLaMA 3.3                        |
-| Data Validation     | Pydantic                                |
-| Tool Interface      | MCP                                     |
-| Containerization    | Docker                                  |
-| Frontend Hosting    | Vercel                                  |
-| Backend Runtime     | Google Cloud Run                        |
-| CI/CD               | Google Cloud Build                      |
-| Secrets             | Google Cloud Secret Manager             |
-| Source Data         | Dubai Land Department 2023 transactions |
+| Layer | Technology |
+|---|---|
+| Frontend | React |
+| Frontend Build Tool | Vite |
+| Styling | Tailwind CSS |
+| Data Visualization | Recharts |
+| API | FastAPI |
+| Language | Python 3.11+ |
+| Analytical Database | DuckDB |
+| LLM | Groq / LLaMA 3.3 |
+| Data Validation | Pydantic |
+| Tool Interface | MCP |
+| Containerization | Docker |
+| Frontend Hosting | Vercel |
+| Backend Runtime | Google Cloud Run |
+| CI/CD | Google Cloud Build |
+| Secrets | Google Cloud Secret Manager |
+| Source Data | Dubai Land Department 2026 YTD transactions |
 
 ---
 
 # Production Characteristics
 
 ```text
-                 AcreIQ Reliability Model
+                  AcreIQ Reliability Model
 
        ┌─────────────────────────────────────┐
        │       DLD Transaction Ground Truth   │
        └──────────────────┬──────────────────┘
                           │
                           ▼
-                  Deterministic SQL
+                 Deterministic SQL
                           │
                           ▼
-              Segmented Analytical Results
+              Analytical Results
+                          │
+             ┌────────────┼────────────┐
+             │            │            │
+             ▼            ▼            ▼
+        Standard      Comparative    Market
+        Metrics       Metrics        Signals
+             │            │            │
+             └────────────┴────────────┘
                           │
                           ▼
                    LLM Synthesis
                           │
                           ▼
-                   Auditor Gate
+                    Auditor Gate
                           │
              ┌────────────┴────────────┐
              │                         │
-           PASS                       FAIL
+            PASS                      FAIL
              │                         │
              ▼                         ▼
-      Verified response         Explicit rejection
-      + provenance              + discrepancy log
+      Verified response        Explicit rejection
+       + provenance            + discrepancy log
 ```
 
 The architecture intentionally places the language model **between deterministic computation and deterministic verification**.
 
-That separation is the core mechanism AcreIQ uses to reduce financial hallucination while retaining the usability of natural-language AI interfaces.
+The core reliability model is therefore:
 
-For verified warm requests, the production system targets **sub-3.5-second round trips with zero discrepancies**, while retaining transaction-level DLD provenance.
+> **Source data → deterministic computation → interpretation → deterministic verification.**
 
-The system's reliability model is therefore based on three properties:
-
-```text
-Deterministic computation
-        +
-Programmatic verification
-        +
-Traceable source records
-        =
-Verifiable financial intelligence
-```
-
----
-
-# Live Deployment
-
-### Interactive Analytical Terminal
-
-https://acreiq.vercel.app/
-
-### Swagger / OpenAPI
-
-https://acreiq-api-zv7ueef3fq-ww.a.run.app/docs
-
-### Primary API Route
-
-```text
-POST /v1/chat
-```
-
-### Deployment Region
-
-```text
-Google Cloud — me-central1
-```
-
----
-
-# Project Status
-
-AcreIQ has transitioned from a backend analytical prototype into a **full-stack institutional analytical terminal** with:
-
-* Interactive React/Vite dashboard
-* Tailwind-based analytical interface
-* Recharts market visualizations
-* Ready / Off-Plan market segmentation
-* Monthly transaction and price/m² timeseries
-* Natural-language and UI duration filtering
-* MCP support for agentic clients
-* Production FastAPI REST API
-* Deterministic DuckDB analytics
-* LLM synthesis
-* Auditor Gate verification
-* DLD registry-record provenance
-* Adversarial query rejection
-* Serverless Cloud Run deployment
-* Vercel frontend deployment
-
-The current operating model is:
-
-```text
-Human / Agent Query
-        │
-        ▼
-Interactive Terminal / MCP / REST
-        │
-        ▼
-Deterministic cadastral resolution
-        │
-        ▼
-Segment-aware DuckDB analysis
-        │
-        ▼
-LLM explanation
-        │
-        ▼
-Programmatic verification
-        │
-        ▼
-Grounded response
-        │
-        ├── Financial figures
-        ├── Market dynamics
-        └── DLD registry provenance
-```
-
-Unsupported query:
-
-```text
-Query
-  │
-  ▼
-No verified records
-  │
-  ▼
-Circuit breaker
-  │
-  ▼
-grounded: false
-```
-
-**The system treats financial ground truth as an invariant, not a generation target.**
+This is the central architectural distinction between AcreIQ and a conventional financial RAG system.
