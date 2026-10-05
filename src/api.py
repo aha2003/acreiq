@@ -17,21 +17,25 @@ Run in production (Cloud Run sets $PORT):
 import logging
 import time
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from src.schemas import TimeSeriesPoint
 from src.agents import AcreIQWorkflow
+from src.schemas import (
+    AnalystDraft,
+    VerificationReport,
+    MarketSignal,
+    PeriodDelta,
+    AuditCheckItem,
+)
 
 # --------------------------------------------------------------------------
 # Structured logging
 # --------------------------------------------------------------------------
-# Cloud Run / Cloud Logging parses JSON-formatted stdout logs automatically,
-# so we keep the format simple and machine-readable rather than "pretty".
 logging.basicConfig(
     level=logging.INFO,
     format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
@@ -42,9 +46,6 @@ logger = logging.getLogger("acreiq.api")
 # --------------------------------------------------------------------------
 # App + workflow singleton
 # --------------------------------------------------------------------------
-# AcreIQWorkflow / DatabaseEngine are constructed once per container instance,
-# not per-request -- the DuckDB connection / BigQuery client are reused across
-# requests, matching how Cloud Run keeps warm instances alive between calls.
 app = FastAPI(
     title="AcreIQ API",
     description="Grounded Dubai real-estate market analysis over DLD transaction data.",
@@ -54,7 +55,7 @@ app = FastAPI(
 # Enable CORS for React frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows local dev and any Vercel domain
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,7 +78,14 @@ class ChatResponse(BaseModel):
     discrepancies: List[str]
     source_trace_ids: List[str]
     latency_ms: int
-    timeseries: Optional[List[TimeSeriesPoint]] = None
+    timeseries: Optional[List[Dict[str, Any]]] = None
+    market_signals: Optional[List[MarketSignal]] = None
+    delta: Optional[PeriodDelta] = None
+    audit_checks: Optional[List[AuditCheckItem]] = None
+    suggested_prompts: Optional[List[str]] = None
+    is_comparison: bool = False
+    area1_label: Optional[str] = None
+    area2_label: Optional[str] = None
 
 
 # --------------------------------------------------------------------------
@@ -85,14 +93,6 @@ class ChatResponse(BaseModel):
 # --------------------------------------------------------------------------
 @app.get("/healthz", status_code=status.HTTP_200_OK)
 def healthz():
-    """
-    Liveness/readiness probe.
-
-    Cloud Run uses this to decide when a container is ready to receive
-    traffic and whether to restart it. Keep this cheap and dependency-free
-    on the hot path -- do NOT run a DB query here, or a slow/down database
-    will take the whole container out of rotation.
-    """
     return {"status": "ok"}
 
 
@@ -126,18 +126,21 @@ def chat(payload: ChatRequest, request: Request):
         source_trace_ids=report.source_trace_ids,
         latency_ms=latency_ms,
         timeseries=report.timeseries,
+        market_signals=report.market_signals,
+        delta=report.delta,
+        audit_checks=report.audit_checks,
+        suggested_prompts=report.suggested_prompts,
+        is_comparison=report.is_comparison,
+        area1_label=report.area1_label,
+        area2_label=report.area2_label,
     )
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    """
-    Catch-all so an unexpected error returns clean JSON instead of a raw
-    traceback -- important once this is public-facing on Cloud Run.
-    """
     request_id = str(uuid.uuid4())
     logger.error(f"request_id={request_id} unhandled exception: {exc}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"request_id": request_id, "error": "internal_server_error"},
+        content={"request_id": request_id, "error": str(exc)},
     )
