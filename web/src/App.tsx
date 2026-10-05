@@ -17,46 +17,38 @@ import {
   Database, 
   Search, 
   Building2, 
-  TrendingUp,
-  Calendar,
-  Layers
+  TrendingUp, 
+  TrendingDown,
+  Sparkles,
+  Compass,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  ArrowRight,
+  GitCompare
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatResponse } from './types';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/v1/chat";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/v1/chat";
 
 export default function App() {
-  const [baseArea, setBaseArea] = useState("Business Bay");
-  const [timeHorizon, setTimeHorizon] = useState<"ALL" | "1Y" | "6M" | "3M">("ALL");
-  const [marketType, setMarketType] = useState<"ALL" | "Ready" | "Off-Plan">("ALL");
-
+  const [queryInput, setQueryInput] = useState("Compare price/m² trends between Business Bay and Al Furjan");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ChatResponse | null>(null);
+  const [auditExpanded, setAuditExpanded] = useState(false);
 
-  const executeSearch = async (area: string, horizon: string, market: string) => {
+  const executeSearch = async (promptText: string) => {
     setLoading(true);
     setError(null);
-
-    // Build natural-language prompt containing temporal and segmentation modifiers
-    let constructedQuery = `Summarize transaction prices in ${area}`;
-    if (market !== "ALL") {
-      constructedQuery += ` for ${market} properties`;
-    }
-    if (horizon === "3M") {
-      constructedQuery += " over the last 3 months";
-    } else if (horizon === "6M") {
-      constructedQuery += " over the last 6 months";
-    } else if (horizon === "1Y") {
-      constructedQuery += " in the past year";
-    }
 
     try {
       const res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: constructedQuery }),
+        body: JSON.stringify({ query: promptText }),
       });
 
       if (!res.ok) {
@@ -74,189 +66,307 @@ export default function App() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!baseArea.trim()) return;
-    executeSearch(baseArea, timeHorizon, marketType);
+    if (!queryInput.trim()) return;
+    executeSearch(queryInput);
   };
 
+  const parseSections = (text: string) => {
+    if (!text) return { summary: "", advice: "" };
+    const parts = text.split(/Market advice:|Strategic Investor Advisory:|Strategic Advisory:/i);
+    if (parts.length > 1) {
+      return { summary: parts[0].trim(), advice: parts[1].trim() };
+    }
+    return { summary: text, advice: "" };
+  };
+
+  const { summary, advice } = result ? parseSections(result.final_output) : { summary: "", advice: "" };
+
+  // Detect whether backend payload is in comparison mode
+  const isComparisonMode = Boolean(
+    result?.is_comparison || 
+    (result?.timeseries && result.timeseries.length > 0 && result.timeseries[0].area1_avg_sqm !== undefined)
+  );
+
+  const area1Title = result?.area1_label || result?.timeseries?.[0]?.area1_name || "Primary Area";
+  const area2Title = result?.area2_label || result?.timeseries?.[0]?.area2_name || "Secondary Area";
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex justify-between items-center sticky top-0 z-20">
+    <div className="min-h-screen bg-[#FAF9F5] text-[#191919] flex flex-col font-sans selection:bg-[#E8E6DF]">
+      {/* Top Header */}
+      <header className="border-b border-[#E5E3DC] bg-[#FAF9F5]/90 backdrop-blur px-8 py-4 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold">
+          <div className="w-8 h-8 rounded-md bg-[#191919] text-[#FAF9F5] flex items-center justify-center font-serif font-bold text-sm shadow-sm">
             A
           </div>
           <div>
-            <h1 className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
+            <h1 className="text-sm font-semibold tracking-tight text-[#191919] flex items-center gap-2">
               AcreIQ Terminal
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
-                v1.1 DLD Segmented
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[#EDECE6] text-[#66645E] border border-[#DDDCD5]">
+                v1.2 In-Memory OLAP
               </span>
             </h1>
-            <p className="text-xs text-slate-400">Deterministic UAE Real Estate Market Operations</p>
+            <p className="text-[11px] text-[#73716B]">Institutional DLD Market Intelligence & Quantitative Audit</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            DuckDB Engine Active
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <span className="flex items-center gap-1.5 text-[#2B6E44] bg-[#EBF4EE] px-2.5 py-1 rounded-md border border-[#D1E6D8]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2B6E44] animate-pulse" />
+            DuckDB Active
           </span>
-          <span className="hidden sm:inline text-slate-500">|</span>
-          <span className="text-slate-400 hidden sm:inline">me-central1 (Dubai)</span>
+          <span className="text-[#DDDCD5]">|</span>
+          <span className="text-[#8C8980]">me-central1</span>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-6">
-        <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-8 flex flex-col gap-6">
+        {/* Search & Natural Language Query Console */}
+        <section className="bg-white border border-[#E5E3DC] rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col gap-4">
           <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3.5 text-slate-500" size={16} />
+              <Search className="absolute left-3.5 top-3.5 text-[#8C8980]" size={16} />
               <input
                 type="text"
-                value={baseArea}
-                onChange={(e) => setBaseArea(e.target.value)}
-                placeholder="Enter community (e.g. 'Business Bay', 'Dubai Marina', 'Wadi Al Safa')..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
+                placeholder="Ask AcreIQ (e.g. 'Compare price/m² trends between Business Bay and Al Furjan')..."
+                className="w-full bg-[#FAF9F5] border border-[#DDDCD5] rounded-lg pl-10 pr-4 py-2.5 text-sm text-[#191919] placeholder-[#8C8980] focus:outline-none focus:border-[#191919] focus:bg-white transition-all shadow-inner"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              className="bg-[#191919] hover:bg-[#33312E] text-[#FAF9F5] font-medium px-6 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
             >
               {loading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-[#FAF9F5] border-t-transparent rounded-full animate-spin" />
                   Auditing DLD...
                 </>
               ) : (
-                "Query Registry"
+                "Analyze Market"
               )}
             </button>
           </form>
 
-          {/* Filter Toolbar: Community Chips + Time Horizon + Market Segment */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800/60 text-xs">
-            {/* Quick Communities */}
+          {/* Quick Filter Areas & Dynamic Suggestions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#F0EFEA] text-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto">
-              <span className="text-slate-500 font-medium">Areas:</span>
-              {["Business Bay", "Wadi Al Safa", "Nad Al Sheba", "Dubai Marina", "Downtown Dubai"].map((area) => (
+              <span className="text-[#8C8980] font-medium">Quick Areas:</span>
+              {["Al Furjan", "Business Bay", "Dubai Marina", "Downtown Dubai"].map((area) => (
                 <button
                   key={area}
                   type="button"
                   onClick={() => {
-                    setBaseArea(area);
-                    executeSearch(area, timeHorizon, marketType);
+                    const q = `Summarize transaction prices and market advice in ${area} over the last 6 months`;
+                    setQueryInput(q);
+                    executeSearch(q);
                   }}
-                  className={`px-2 py-0.5 rounded border transition-colors cursor-pointer whitespace-nowrap ${
-                    baseArea.toLowerCase() === area.toLowerCase()
-                      ? "bg-cyan-950 border-cyan-800 text-cyan-400 font-medium"
-                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
-                  }`}
+                  className="px-2.5 py-1 rounded-md border border-[#E5E3DC] bg-[#FAF9F5] hover:bg-[#F3F1EC] text-[#595752] transition-colors cursor-pointer text-[11px]"
                 >
                   {area}
                 </button>
               ))}
             </div>
 
-            {/* Time Horizon & Market Type Toggles */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Market Type */}
-              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-0.5 rounded-lg">
-                <Layers size={13} className="text-slate-500 ml-1.5" />
-                {(["ALL", "Ready", "Off-Plan"] as const).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      setMarketType(type);
-                      executeSearch(baseArea, timeHorizon, type);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                      marketType === type
-                        ? "bg-slate-800 text-cyan-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {type === "ALL" ? "All Types" : type}
-                  </button>
-                ))}
-              </div>
-
-              {/* Time Duration */}
-              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-0.5 rounded-lg">
-                <Calendar size={13} className="text-slate-500 ml-1.5" />
-                {(["ALL", "1Y", "6M", "3M"] as const).map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => {
-                      setTimeHorizon(h);
-                      executeSearch(baseArea, h, marketType);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                      timeHorizon === h
-                        ? "bg-slate-800 text-cyan-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {h === "ALL" ? "All Time" : h}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <span className="text-[#8C8980] font-medium hidden md:inline">Suggested:</span>
+              {(result?.suggested_prompts && result.suggested_prompts.length > 0
+                ? result.suggested_prompts
+                : [
+                    "Compare price/m² trends between Business Bay and Al Furjan",
+                    "Why did transaction volume spike in June for Al Furjan?",
+                  ]
+              ).slice(0, 2).map((prompt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setQueryInput(prompt);
+                    executeSearch(prompt);
+                  }}
+                  className="text-[11px] text-[#9E5D2A] hover:text-[#7D461D] bg-[#FDF8F3] border border-[#F2E0D0] hover:border-[#E4C5AC] px-2.5 py-1 rounded-md flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>"{prompt}"</span>
+                  <ArrowRight size={11} className="shrink-0" />
+                </button>
+              ))}
             </div>
           </div>
         </section>
 
         {error && (
-          <div className="p-4 bg-rose-950/50 border border-rose-900 rounded-xl text-rose-300 text-sm flex items-center gap-2">
+          <div className="p-4 bg-[#FDF2F2] border border-[#F5C2C2] rounded-xl text-[#B92B27] text-sm flex items-center gap-2">
             <AlertTriangle size={16} /> {error}
+          </div>
+        )}
+
+        {/* Market Signals Strip */}
+        {result?.market_signals && result.market_signals.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {result.market_signals.map((signal, idx) => (
+              <div 
+                key={idx}
+                className="bg-white border border-[#E5E3DC] hover:border-[#C4C2BA] transition-colors rounded-xl p-4 flex items-start justify-between gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#F8EFE6] text-[#9E5D2A] border border-[#EED9C7] font-semibold">
+                      {signal.period}
+                    </span>
+                    <h4 className="text-xs font-semibold text-[#191919]">{signal.title}</h4>
+                  </div>
+                  <p className="text-xs text-[#595752] leading-relaxed">{signal.description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQueryInput(signal.drilldown_prompt);
+                    executeSearch(signal.drilldown_prompt);
+                  }}
+                  className="shrink-0 text-[11px] bg-[#FAF9F5] hover:bg-[#F3F1EC] text-[#191919] border border-[#D5D3CA] px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer font-medium transition-colors"
+                >
+                  Why? <HelpCircle size={12} className="text-[#8C8980]" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* What Changed? Period Delta */}
+        {result?.delta && (
+          <div className="bg-white border border-[#E5E3DC] rounded-xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-[#191919] uppercase tracking-wider text-[11px]">Period Movement</span>
+              <span className="text-[#8C8980] font-mono text-[11px]">
+                ({result.delta.start_period} → {result.delta.end_period})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-6 font-mono text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#73716B]">Volume Delta:</span>
+                <span className={`font-semibold flex items-center gap-0.5 ${
+                  result.delta.volume_change_pct >= 0 ? "text-[#2B6E44]" : "text-[#B92B27]"
+                }`}>
+                  {result.delta.volume_change_pct >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                  {result.delta.volume_change_pct > 0 ? `+${result.delta.volume_change_pct}%` : `${result.delta.volume_change_pct}%`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#73716B]">Price/m² Delta:</span>
+                <span className={`font-semibold flex items-center gap-0.5 ${
+                  result.delta.price_sqm_change_pct >= 0 ? "text-[#2B6E44]" : "text-[#B92B27]"
+                }`}>
+                  {result.delta.price_sqm_change_pct >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                  {result.delta.price_sqm_change_pct > 0 ? `+${result.delta.price_sqm_change_pct}%` : `${result.delta.price_sqm_change_pct}%`}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const prompt = `Explain the volume and price shift between ${result.delta?.start_period} and ${result.delta?.end_period}`;
+                setQueryInput(prompt);
+                executeSearch(prompt);
+              }}
+              className="text-[#9E5D2A] hover:underline cursor-pointer text-[11px] flex items-center gap-1 font-medium"
+            >
+              Investigate Drift <ArrowRight size={11} />
+            </button>
           </div>
         )}
 
         {result && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <span
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    result.is_grounded
-                      ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                      : "bg-rose-950 text-rose-400 border border-rose-800"
-                  }`}
+            {/* Left Column: Text Cards & Auditor */}
+            <div className="lg:col-span-5 flex flex-col gap-4">
+              {/* Expandable Auditor Ledger */}
+              <div className="bg-white border border-[#E5E3DC] rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div 
+                  onClick={() => setAuditExpanded(!auditExpanded)}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-[#FAF9F5] transition-colors"
                 >
-                  {result.is_grounded ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
-                  {result.is_grounded ? "AUDITOR VERIFIED (0 DISCREPANCIES)" : "GROUNDING FAILED"}
-                </span>
-                <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-                  <Clock size={12} /> {result.latency_ms}ms
-                </span>
+                  <span
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md ${
+                      result.is_grounded
+                        ? "bg-[#EBF4EE] text-[#2B6E44] border border-[#D1E6D8]"
+                        : "bg-[#FDF2F2] text-[#B92B27] border border-[#F5C2C2]"
+                    }`}
+                  >
+                    {result.is_grounded ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
+                    {result.is_grounded ? "AUDITOR VERIFIED (0 DISCREPANCIES)" : "GROUNDING FAILED"}
+                  </span>
+                  <div className="flex items-center gap-2 text-xs text-[#8C8980] font-mono">
+                    <Clock size={12} /> {result.latency_ms}ms
+                    {auditExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </div>
+                </div>
+
+                {auditExpanded && result.audit_checks && (
+                  <div className="border-t border-[#E5E3DC] p-4 bg-[#FAF9F5] flex flex-col gap-2">
+                    <p className="text-[10px] font-mono text-[#8C8980] uppercase tracking-wider">
+                      Deterministic Checks ({result.audit_checks.filter(c => c.passed).length}/{result.audit_checks.length} Passed)
+                    </p>
+                    <div className="space-y-1.5">
+                      {result.audit_checks.map((check, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-[#EBEAE4] last:border-0">
+                          <span className="flex items-center gap-1.5 text-[#33312E]">
+                            <CheckCircle2 size={12} className="text-[#2B6E44]" />
+                            {check.name}
+                          </span>
+                          <span className="text-[11px] font-mono text-[#8C8980]">{check.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="text-sm text-slate-300 leading-relaxed font-sans space-y-2 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul>li]:mb-1 [&>strong]:text-slate-100">
-                <ReactMarkdown>{result.final_output}</ReactMarkdown>
+              {/* Cadastral Market Summary */}
+              <div className="bg-white border border-[#E5E3DC] rounded-xl p-5 flex flex-col gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="flex items-center justify-between border-b border-[#F0EFEA] pb-2">
+                  <div className="flex items-center gap-2 text-[#191919] font-semibold text-xs tracking-wider uppercase">
+                    <Sparkles size={14} className="text-[#9E5D2A]" /> Cadastral Summary
+                  </div>
+                  <span className="text-[10px] font-mono text-[#73716B] bg-[#FAF9F5] px-2 py-0.5 rounded border border-[#E5E3DC]">
+                    [DLD Evidence]
+                  </span>
+                </div>
+                <div className="text-sm text-[#33312E] leading-relaxed font-sans space-y-2 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul>li]:mb-1 [&>strong]:text-[#191919]">
+                  <ReactMarkdown>{summary}</ReactMarkdown>
+                </div>
               </div>
 
-              {result.discrepancies.length > 0 && (
-                <div className="bg-rose-950/30 border border-rose-900/60 p-3 rounded-lg text-xs text-rose-300">
-                  <p className="font-semibold mb-1">Auditor Discrepancy Log:</p>
-                  <ul className="list-disc list-inside space-y-0.5">
-                    {result.discrepancies.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
+              {/* Strategic Advisory */}
+              {advice && (
+                <div className="bg-[#FAF8F5] border border-[#EADECE] rounded-xl p-5 flex flex-col gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center justify-between border-b border-[#EADECE]/80 pb-2">
+                    <div className="flex items-center gap-2 text-[#9E5D2A] font-semibold text-xs tracking-wider uppercase">
+                      <Compass size={14} /> Decision Support
+                    </div>
+                    <span className="text-[10px] font-mono text-[#9E5D2A] bg-white px-2 py-0.5 rounded border border-[#EADECE]">
+                      [AcreIQ Analysis]
+                    </span>
+                  </div>
+                  <div className="text-sm text-[#4A4742] leading-relaxed font-sans space-y-1.5 [&>p]:mb-1.5 [&>ul]:list-disc [&>ul]:ml-4 [&>ul>li]:mb-1 [&>strong]:text-[#191919]">
+                    <ReactMarkdown>{advice}</ReactMarkdown>
+                  </div>
                 </div>
               )}
 
-              <div className="border-t border-slate-800 pt-3">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              {/* Provenance Trace IDs */}
+              <div className="bg-white border border-[#E5E3DC] rounded-xl p-4 flex flex-col gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <p className="text-[11px] font-semibold text-[#8C8980] uppercase tracking-wider flex items-center gap-1.5">
                   <Database size={13} /> Official DLD Registry Trace IDs
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {result.source_trace_ids.map((id) => (
                     <span
                       key={id}
-                      className="font-mono text-[11px] bg-slate-950 border border-slate-800 px-2 py-0.5 rounded text-cyan-400"
+                      className="font-mono text-[11px] bg-[#FAF9F5] border border-[#DDDCD5] px-2 py-0.5 rounded text-[#595752]"
                     >
                       {id}
                     </span>
@@ -265,123 +375,164 @@ export default function App() {
               </div>
             </div>
 
-            <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                    <TrendingUp size={15} className="text-cyan-400" />
-                    Market Dynamics: Price / m² & Volume
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Segmented Ready vs. Off-Plan trajectories</p>
+            {/* Right Column: Chart (Adaptive Comparison vs Single-Area) */}
+            <div className="lg:col-span-7 flex flex-col gap-4">
+              <div className="bg-white border border-[#E5E3DC] rounded-xl p-6 flex flex-col gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="flex items-center justify-between border-b border-[#F0EFEA] pb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#191919] flex items-center gap-2">
+                      {isComparisonMode ? (
+                        <>
+                          <GitCompare size={15} className="text-[#9E5D2A]" />
+                          Comparative Price / m²: {area1Title} vs. {area2Title}
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp size={15} className="text-[#191919]" />
+                          Price / m² & Transaction Volume
+                        </>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-[#8C8980]">
+                      {isComparisonMode 
+                        ? `Monthly average price/m² trajectories across both locations`
+                        : "Dual-axis timeseries with Ready vs. Off-Plan trajectories"}
+                    </p>
+                  </div>
+                  <span className="text-xs text-[#8C8980] font-mono">DLD Timeseries</span>
                 </div>
-                <span className="text-xs text-slate-500 font-mono">DLD Registry Timeseries</span>
-              </div>
 
-              {result.timeseries && result.timeseries.length > 0 ? (
-                <div className="h-72 w-full pt-2">
-                  <ResponsiveContainer width="100%" height="100%">
+                {result.timeseries && result.timeseries.length > 0 ? (
+                  <div className="h-80 w-full pt-2">
+                    <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={result.timeseries}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                      <CartesianGrid strokeDasharray="2 2" stroke="#EFEFEA" vertical={false} />
                       <XAxis 
-                        dataKey="month_year" 
-                        stroke="#64748b" 
+                        dataKey={(d) => d.month_year || d.period} 
+                        stroke="#8C8980" 
                         fontSize={11} 
                         tickLine={false} 
                       />
+                      {/* Left Y-Axis: Price / m² */}
                       <YAxis 
                         yAxisId="left" 
-                        stroke="#06b6d4" 
+                        stroke="#191919" 
                         fontSize={11} 
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
                       />
+                      {/* Right Y-Axis: Transaction Volume (Always Active) */}
                       <YAxis 
                         yAxisId="right" 
                         orientation="right" 
-                        stroke="#64748b" 
+                        stroke="#8C8980" 
                         fontSize={11} 
                         tickLine={false}
                         axisLine={false}
                       />
                       <Tooltip 
                         contentStyle={{ 
-                          backgroundColor: "#020617", 
-                          borderColor: "#334155", 
+                          backgroundColor: "#FFFFFF", 
+                          borderColor: "#E5E3DC", 
                           borderRadius: "8px",
-                          fontSize: "12px" 
+                          fontSize: "12px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                          color: "#191919"
                         }} 
                       />
                       <Legend 
-                        wrapperStyle={{ fontSize: "11px", paddingTop: "12px", color: "#94a3b8" }} 
-                        formatter={(value) => <span className="text-slate-300 font-medium">{value}</span>}
+                        wrapperStyle={{ fontSize: "11px", paddingTop: "14px", color: "#595752" }} 
+                        formatter={(value) => <span className="text-[#33312E] font-medium">{value}</span>}
                       />
-                      <Bar 
-                        yAxisId="right" 
-                        dataKey="volume" 
-                        name="Volume (Deals)" 
-                        fill="#1e293b" 
-                        stroke="#334155"
-                        radius={[4, 4, 0, 0]} 
-                      />
-                      {(marketType === "ALL" || marketType === "Ready") && (
-                        <Line 
-                          yAxisId="left" 
-                          type="monotone" 
-                          dataKey="ready_avg_sqm" 
-                          name="Ready (AED/m²)" 
-                          stroke="#06b6d4" 
-                          strokeWidth={2} 
-                          connectNulls={true}
-                          dot={{ fill: "#06b6d4", r: 4 }} 
-                        />
-                      )}
-                      {(marketType === "ALL" || marketType === "Off-Plan") && (
-                        <Line 
-                          yAxisId="left" 
-                          type="monotone" 
-                          dataKey="offplan_avg_sqm" 
-                          name="Off-Plan (AED/m²)" 
-                          stroke="#f59e0b" 
-                          strokeWidth={2} 
-                          connectNulls={true}
-                          dot={{ fill: "#f59e0b", r: 4 }} 
-                        />
+
+                      {/* Dynamic Series Branching */}
+                      {isComparisonMode ? (
+                        <>
+                          {/* Area 1 Deal Volume Bar */}
+                          <Bar 
+                            yAxisId="right" 
+                            dataKey="area1_volume" 
+                            name={`${area1Title} Deals`} 
+                            fill="#E5E3DC" 
+                            radius={[2, 2, 0, 0]} 
+                          />
+                          {/* Area 2 Deal Volume Bar */}
+                          <Bar 
+                            yAxisId="right" 
+                            dataKey="area2_volume" 
+                            name={`${area2Title} Deals`} 
+                            fill="#D6C4B4" 
+                            radius={[2, 2, 0, 0]} 
+                          />
+                          {/* Area 1 Price/m² Line */}
+                          <Line 
+                            yAxisId="left" 
+                            type="monotone" 
+                            dataKey="area1_avg_sqm" 
+                            name={`${area1Title} (AED/m²)`} 
+                            stroke="#191919" 
+                            strokeWidth={2.5} 
+                            connectNulls={true}
+                            dot={{ fill: "#191919", r: 4 }} 
+                          />
+                          {/* Area 2 Price/m² Line */}
+                          <Line 
+                            yAxisId="left" 
+                            type="monotone" 
+                            dataKey="area2_avg_sqm" 
+                            name={`${area2Title} (AED/m²)`} 
+                            stroke="#C26A29" 
+                            strokeWidth={2.5} 
+                            connectNulls={true}
+                            dot={{ fill: "#C26A29", r: 4 }} 
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {/* Single Area Mode: Total Deals */}
+                          <Bar 
+                            yAxisId="right" 
+                            dataKey={(d) => d.volume ?? d.total_volume ?? 0} 
+                            name="Volume (Deals)" 
+                            fill="#EDECE6" 
+                            stroke="#DDDCD5"
+                            radius={[3, 3, 0, 0]} 
+                          />
+                          {/* Ready Units Line */}
+                          <Line 
+                            yAxisId="left" 
+                            type="monotone" 
+                            dataKey={(d) => d.ready_avg_sqm ?? d.ready_price_sqm} 
+                            name="Ready (AED/m²)" 
+                            stroke="#191919" 
+                            strokeWidth={2} 
+                            connectNulls={true}
+                            dot={{ fill: "#191919", r: 3.5 }} 
+                          />
+                          {/* Off-Plan Line */}
+                          <Line 
+                            yAxisId="left" 
+                            type="monotone" 
+                            dataKey={(d) => d.offplan_avg_sqm ?? d.offplan_price_sqm} 
+                            name="Off-Plan (AED/m²)" 
+                            stroke="#C26A29" 
+                            strokeWidth={2} 
+                            connectNulls={true}
+                            dot={{ fill: "#C26A29", r: 3.5 }} 
+                          />
+                        </>
                       )}
                     </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-72 border border-dashed border-slate-800 rounded-lg text-slate-500 text-xs">
-                  <Building2 size={24} className="mb-2 opacity-50" />
-                  No monthly timeseries breakdown available for this query slice.
-                </div>
-              )}
-
-              {result.timeseries && result.timeseries.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 border-t border-slate-800 pt-3">
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                  <p className="text-[10px] text-slate-500 uppercase font-mono">Period Buckets</p>
-                  <p className="text-sm font-semibold text-slate-200 mt-0.5">{result.timeseries.length} Months</p>
-                </div>
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                  <p className="text-[10px] text-slate-500 uppercase font-mono">Peak Ready Rate</p>
-                  <p className="text-sm font-semibold text-cyan-400 mt-0.5">
-                    {Math.max(...result.timeseries.map(t => t.ready_avg_sqm || 0)) > 0 
-                      ? `AED ${Math.max(...result.timeseries.map(t => t.ready_avg_sqm || 0)).toLocaleString()}/m²`
-                      : "N/A (Off-Plan Slice)"}
-                  </p>
-                </div>
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
-                  <p className="text-[10px] text-slate-500 uppercase font-mono">Peak Off-Plan Rate</p>
-                  <p className="text-sm font-semibold text-amber-400 mt-0.5">
-                    {Math.max(...result.timeseries.map(t => t.offplan_avg_sqm || 0)) > 0 
-                      ? `AED ${Math.max(...result.timeseries.map(t => t.offplan_avg_sqm || 0)).toLocaleString()}/m²`
-                      : "N/A (Ready Slice)"}
-                  </p>
-                </div>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#E5E3DC] rounded-lg text-[#8C8980] text-xs">
+                    <Building2 size={24} className="mb-2 opacity-40" />
+                    No monthly timeseries breakdown available for this query slice.
+                  </div>
+                )}
               </div>
-              )}
             </div>
           </div>
         )}
