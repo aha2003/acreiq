@@ -9,4 +9,4 @@ data/*.csv
 
 # OS / Editor clutter
 .DS_Store
-.vscode/
+.vscode/web/tsconfig.tsbuildinfo
