@@ -58,7 +58,7 @@ flowchart TD
 
     Analytics --> Signals["get_market_signals<br/><br/>PeriodDelta<br/>MarketSignal<br/>Volume / Price Anomalies"]
 
-    Analytics --> Synth["Primary Synthesizer<br/>Groq / LLaMA 3.3<br/><br/>Market Brief / Comparative / Causal Explanation"]
+    Analytics --> Synth["Primary Synthesizer<br/>Google Gemini / Gemini 3.8 Flash<br/><br/>Market Brief / Comparative / Causal Explanation"]
 
     Compare --> Synth
     Signals --> Synth
@@ -101,7 +101,7 @@ AcreIQ separates **computation** from **language generation**.
 | Market segmentation | Deterministic Ready / Off-Plan filtering |
 | Comparative analytics | `compare_areas_metrics` |
 | Market signal extraction | `get_market_signals` |
-| Natural-language synthesis | Groq / LLaMA 3.3 |
+| Natural-language synthesis | Google Gemini / Gemini 3.8 Flash |
 | Numerical verification | Deterministic Auditor Gate |
 | Provenance | DLD registry record IDs |
 | Invalid-query handling | Fast-path circuit breaker |
@@ -414,7 +414,7 @@ AcreIQ separates generation from verification.
 
 ### Primary Synthesizer
 
-The Groq-hosted LLaMA 3.3 model receives the verified analytical slice and produces a human-readable market brief.
+The Google-hosted Gemini 3.8 Flash model receives the verified analytical slice and produces a human-readable market brief.
 
 Its role is to:
 
@@ -703,7 +703,7 @@ Query intent detection
              └────────┴─────────┘
                       │
                       ▼
-              Groq / LLaMA 3.3
+              Google Gemini / Gemini 3.8 Flash
                       │
                       ▼
                   Auditor Gate
@@ -764,7 +764,7 @@ The deployment is designed for low idle cost while retaining bounded production 
                   ▼                     ▼
            AcreIQ Container       Secret Manager
                   │                     │
-                  │                GROQ_API_KEY
+                  │                GEMINI_API_KEY
                   │
                   ▼
              DuckDB RAM
@@ -783,7 +783,7 @@ The deployment is designed for low idle cost while retaining bounded production 
 | Request timeout | `60s` |
 | Container execution | Non-root |
 | Secrets | Google Cloud Secret Manager |
-| LLM provider | Groq |
+| LLM provider | Google Gemini |
 | Analytical engine | DuckDB |
 
 ### Scale-to-Zero
@@ -809,7 +809,7 @@ The production container follows several baseline security practices:
 - Runs as a **non-root user**
 - Uses multi-stage Docker builds
 - Keeps API credentials outside the image
-- Injects `GROQ_API_KEY` dynamically through **Google Cloud Secret Manager**
+- Injects `GEMINI_API_KEY` dynamically through **Google Cloud Secret Manager**
 - Limits Cloud Run capacity through bounded instance configuration
 - Uses strict Pydantic request/response schemas
 
@@ -914,7 +914,7 @@ All financial metrics are computed from the currently loaded DLD source data rat
 - Node.js / npm
 - Docker
 - Access to the DLD transaction dataset
-- Groq API key for LLM synthesis
+- Google Gemini API key for LLM synthesis
 
 ---
 
@@ -952,7 +952,7 @@ pip install -r requirements.txt
 Configure environment variables:
 
 ```bash
-export GROQ_API_KEY="your-api-key"
+export GEMINI_API_KEY="your-api-key"
 ```
 
 Start the API:
@@ -1018,7 +1018,7 @@ Run the container:
 ```bash
 docker run \
   -p 8000:8000 \
-  -e GROQ_API_KEY="your-api-key" \
+  -e GEMINI_API_KEY="your-api-key" \
   acreiq
 ```
 
@@ -1132,7 +1132,7 @@ The architecture deliberately balances:
 | API | FastAPI |
 | Language | Python 3.11+ |
 | Analytical Database | DuckDB |
-| LLM | Groq / LLaMA 3.3 |
+| LLM | Google Gemini / Gemini 3.8 Flash |
 | Data Validation | Pydantic |
 | Tool Interface | MCP |
 | Containerization | Docker |

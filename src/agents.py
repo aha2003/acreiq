@@ -2,9 +2,11 @@
 import json
 import os
 import re
+import httpx
 from typing import Tuple, List, Dict, Any, Optional
 from dotenv import load_dotenv
 from groq import Groq
+from openai import OpenAI
 
 from src.tools import get_area_metrics, compare_areas_metrics
 from src.schemas import (
@@ -17,7 +19,16 @@ from src.schemas import (
 
 load_dotenv()
 
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+gemini_client = OpenAI(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    http_client=httpx.Client(
+        proxy=None,
+        verify=False  # Temporarily bypasses strict Mac SSL to guarantee connection
+    )
+)
 
 DLD_TOOL_DEFINITION = {
     "type": "function",
@@ -91,7 +102,7 @@ COMPARE_TOOL_DEFINITION = {
 }
 
 class AcreIQWorkflow:
-    def __init__(self, model_name: str = "openai/gpt-oss-120b"):
+    def __init__(self, model_name: str = "gemini-3.8-flash"):
         self.model_name = model_name
 
     def run_analyst(self, user_prompt: str) -> Tuple[AnalystDraft, dict]:
@@ -110,7 +121,7 @@ class AcreIQWorkflow:
         ]
 
         try:
-            chat_completion = groq_client.chat.completions.create(
+            chat_completion = gemini_client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 tools=[DLD_TOOL_DEFINITION, COMPARE_TOOL_DEFINITION],
@@ -226,7 +237,7 @@ class AcreIQWorkflow:
             ]
         }
 
-        structured_completion = groq_client.chat.completions.create(
+        structured_completion = gemini_client.chat.completions.create(
             model=self.model_name,
             messages=[
                 extraction_messages[0],
