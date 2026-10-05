@@ -1,32 +1,74 @@
-# src/schemas.py
-from typing import List, Optional
+"""
+src/schemas.py
+
+Pydantic models for AcreIQ analyst drafts, deterministic verification reports,
+time series datapoints, automated market signals, and audit checks.
+"""
+
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
+
 class TimeSeriesPoint(BaseModel):
-    month_year: str = Field(description="Year and month in YYYY-MM format")
-    volume: int = Field(description="Number of transactions in this month")
-    monthly_avg_price: float = Field(description="Mean transaction value in AED")
-    monthly_median_price: float = Field(description="Median transaction value in AED")
-    monthly_avg_sqm: float = Field(description="Overall average price per square meter in AED")
-    ready_avg_sqm: Optional[float] = Field(default=0.0, description="Average price/m² for Ready transactions")
-    offplan_avg_sqm: Optional[float] = Field(default=0.0, description="Average price/m² for Off-plan transactions")
+    month_year: Optional[str] = None
+    period: Optional[str] = None
+    volume: Optional[int] = None
+    total_volume: Optional[int] = None
+    monthly_avg_sqm: Optional[float] = None
+    overall_price_sqm: Optional[float] = None
+    ready_avg_sqm: Optional[float] = None
+    ready_price_sqm: Optional[float] = None
+    offplan_avg_sqm: Optional[float] = None
+    offplan_price_sqm: Optional[float] = None
+
+
+class MarketSignal(BaseModel):
+    type: str
+    severity: str
+    title: str
+    period: str
+    description: str
+    drilldown_prompt: str
+
+
+class PeriodDelta(BaseModel):
+    start_period: str
+    end_period: str
+    volume_change_pct: float
+    price_sqm_change_pct: float
+    start_price_sqm: Optional[float] = None
+    end_price_sqm: Optional[float] = None
+
+
+class AuditCheckItem(BaseModel):
+    name: str
+    passed: bool
+    detail: str
+
 
 class AnalystDraft(BaseModel):
-    area_analyzed: str = Field(description="The area name analyzed")
-    cadastral_name: str = Field(description="Official DLD cadastral name")
-    transaction_count: int = Field(description="Number of transactions reviewed")
-    avg_price_aed: float = Field(description="Stated average sale price in AED")
-    median_price_aed: float = Field(description="Stated median sale price in AED")
-    avg_sqm_price_aed: float = Field(description="Stated price per square meter in AED")
-    market_summary: str = Field(description="Natural language summary of market conditions")
-    sample_transaction_ids: List[str] = Field(description="Sample transaction IDs cited from the query tool")
+    area_analyzed: str
+    cadastral_name: str
+    transaction_count: int
+    avg_price_aed: float
+    median_price_aed: float
+    avg_sqm_price_aed: float
+    market_summary: str
+    sample_transaction_ids: List[str] = Field(default_factory=list)
+
 
 class VerificationReport(BaseModel):
-    is_grounded: bool = Field(description="True if all claims and numbers match source records")
-    discrepancies: List[str] = Field(default_factory=list, description="Any detected hallucinations or mismatches")
-    final_output: str = Field(description="The verified report delivered to the end user")
-    source_trace_ids: List[str] = Field(description="Confirmed DLD registry transaction IDs")
-    timeseries: Optional[List[TimeSeriesPoint]] = Field(
-        default=None, 
-        description="Aggregated monthly volume and price metrics for charting"
-    )
+    is_grounded: bool
+    final_output: str
+    discrepancies: List[str] = Field(default_factory=list)
+    source_trace_ids: List[str] = Field(default_factory=list)
+    timeseries: Optional[List[Dict[str, Any]]] = None
+    market_signals: Optional[List[MarketSignal]] = None
+    delta: Optional[PeriodDelta] = None
+    audit_checks: Optional[List[AuditCheckItem]] = None
+    suggested_prompts: Optional[List[str]] = Field(default_factory=list)
+    is_comparison: bool = False
+    area1_label: Optional[str] = None
+    area2_label: Optional[str] = None
+
+
