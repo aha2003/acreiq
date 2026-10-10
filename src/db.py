@@ -53,8 +53,7 @@ class DatabaseEngine:
                 TRIM(COALESCE("MASTER_PROJECT_EN", '')) AS master_project_en,
                 TRIM(COALESCE("PROJECT_EN", '')) AS project_en,
                 ROUND(TRY_CAST("TRANS_VALUE" AS DOUBLE) / NULLIF(TRY_CAST("ACTUAL_AREA" AS DOUBLE), 0), 2) AS meter_sale_price
-            FROM read_csv_auto('{self.csv_path}', ignore_errors=true)
-            WHERE "GROUP_EN" ILIKE '%Sale%' OR "GROUP_EN" IS NULL;
+            FROM read_csv_auto('{self.csv_path}', ignore_errors=true);
         """)
 
         self.con.execute("CREATE OR REPLACE VIEW transactions AS SELECT * FROM dld_transactions;")

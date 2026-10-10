@@ -5,27 +5,32 @@ from pydantic import BaseModel, Field
 from src.db import db_engine
 
 COMMUNITY_ALIASES: Dict[str, str] = {
-    "dubai marina": "marsa dubai",
-    "downtown dubai": "burj khalifa",
-    "downtown": "burj khalifa",
-    "business bay": "business bay",
-    "palm jumeirah": "palm jumeirah",
-    "furjan": "al furjan",
-    "al furjan": "al furjan",
-    "jumeirah village circle": "al barsha south fourth",
-    "jvc": "al barsha south fourth",
-    "jumeirah lakes towers": "al thanyah fifth",
-    "jumeirah lake towers": "al thanyah fifth", 
-    "jlt": "al thanyah fifth",
-    "nad al sheba": "nad al shiba",
-    "nad al sheba 1": "nad al shiba first",
-    "nad al sheba 2": "nad al shiba second",
-    "nad al sheba 3": "nad al shiba third",
-    "nad al sheba 4": "nad al shiba fourth",
-    "wadi al safaa": "wadi al safa",
-    "wadi al safa": "wadi al safa",
-    "international city": "al warsan first",
-    "difc": "trade center second",
+    # Popular Marketing Names -> Exact Database Match
+    "dubai marina": "DUBAI MARINA",
+    "marsa dubai": "DUBAI MARINA",
+    "downtown dubai": "BURJ KHALIFA",
+    "downtown": "BURJ KHALIFA",
+    "burj khalifa": "BURJ KHALIFA",
+    "business bay": "BUSINESS BAY",
+    "palm jumeirah": "PALM JUMEIRAH", 
+    "furjan": "AL FURJAN",
+    "al furjan": "AL FURJAN",
+    "jumeirah village circle": "JUMEIRAH VILLAGE CIRCLE",
+    "jvc": "JUMEIRAH VILLAGE CIRCLE",
+    "jumeirah village triangle": "JUMEIRAH VILLAGE TRIANGLE",
+    "jvt": "JUMEIRAH VILLAGE TRIANGLE",
+    "jumeirah lakes towers": "JUMEIRAH LAKES TOWERS",
+    "jumeirah lake towers": "JUMEIRAH LAKES TOWERS",
+    "jlt": "JUMEIRAH LAKES TOWERS",
+    "arjan": "ARJAN",
+    "dubai sports city": "DUBAI SPORTS CITY",
+    "motor city": "MOTOR CITY",
+    "dubai production city": "DUBAI PRODUCTION CITY",
+    "dubai studio city": "DUBAI STUDIO CITY",
+    "silicon oasis": "SILICON OASIS",
+    "dubai south": "DUBAI SOUTH",
+    "international city": "INTERNATIONAL CITY PH 1",
+    "difc": "TRADE CENTER SECOND", 
 }
 
 class MarketQueryInput(BaseModel):
@@ -34,7 +39,7 @@ class MarketQueryInput(BaseModel):
     reg_type: Optional[str] = Field(default=None, description="Property status filter: 'Ready', 'Off-Plan', or None")
     start_date: Optional[str] = Field(default=None, description="ISO format start date YYYY-MM-DD")
     end_date: Optional[str] = Field(default=None, description="ISO format end date YYYY-MM-DD")
-    limit_records: Optional[int] = Field(default=5000, description="Max records to sample")
+    limit_records: Optional[int] = Field(default=None, description="Max records to sample. Set to None to process all matching records.")
 
 def get_area_metrics(
     area_name: str, 

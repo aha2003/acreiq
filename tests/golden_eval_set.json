@@ -57,7 +57,7 @@
   },
   {
     "id": "tc_08",
-    "query": "What is the mortgage trend in Marsa Dubai?",
+    "query": "What is the price trend for off-plan properties in Marsa Dubai?",
     "expected_area": "Marsa Dubai",
     "expected_cadastral": "marsa dubai",
     "should_ground": true,
